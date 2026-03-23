@@ -64,7 +64,6 @@
     </dependencyManagement>
 
     <build>
-        <finalName>cepheuna</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

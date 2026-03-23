@@ -1,0 +1,11 @@
+server:
+  port: 11622
+
+spring:
+  application:
+    name: Cepheuna
+
+  ai:
+    openai:
+      api-key: sk-xxxx   # You configure
+      base-url: https://api.openai.com
