@@ -64,7 +64,7 @@ function createMessageRow(role: "user" | "assistant", text: string): HTMLDivElem
 
     const meta = document.createElement("div");
     meta.className = "message-meta";
-    meta.textContent = role === "user" ? `你 · ${formatTime()}` : `助手 · ${formatTime()}`;
+    meta.textContent = role === "user" ? `You · ${formatTime()}` : `Assistant · ${formatTime()}`;
 
     contentWrap.appendChild(bubble);
     contentWrap.appendChild(meta);
@@ -177,7 +177,7 @@ async function sendMessage(): Promise<void> {
         }
 
         if (!response.body) {
-            throw new Error("响应体为空，无法读取流");
+            throw new Error("Response body is empty,cannot read the stream");
         }
 
         messageInput.value = "";
@@ -199,7 +199,7 @@ async function sendMessage(): Promise<void> {
             buffer += decoder.decode(value, { stream: true });
 
             /**
-             * SSE 风格事件通常以空行分隔：
+             * SSE style event is often split by whitespace
              * event: xxx
              * data: xxx
              *
@@ -234,13 +234,13 @@ async function sendMessage(): Promise<void> {
         }
 
         if (!assistantText) {
-            updateAssistantMessage(assistantRow, "（没有收到模型回复内容）", true);
+            updateAssistantMessage(assistantRow, "( Not received model's reply )", true);
         }
     } catch (error) {
         console.error("sendMessage error:", error);
         updateAssistantMessage(
             assistantRow,
-            `请求失败：${error instanceof Error ? error.message : "未知错误"}`,
+            `Failed to request：${error instanceof Error ? error.message : "Unknown error"}`,
             true
         );
         setStatus("error", "Error");
