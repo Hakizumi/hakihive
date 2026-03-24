@@ -30,11 +30,6 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Create source archives
-        run: |
-          git archive -o source.zip HEAD
-          git archive --format=tar.gz -o source.tar.gz HEAD
-
       - name: Compile TypeScript
         run: npx --yes --package typescript tsc
 
@@ -60,7 +55,6 @@ jobs:
           tag_name: ${{ env.TAG_NAME }}
           files: |
             target/cepheuna-${{ env.TAG_NAME }}.jar
-            source.zip
-            source.tar.gz
+
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
