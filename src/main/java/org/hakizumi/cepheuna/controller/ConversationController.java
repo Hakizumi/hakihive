@@ -23,7 +23,6 @@ import reactor.core.publisher.Flux;
  * @see ConversationController#sendMessageStreaming(ConversationRequest)
  *
  * @since 1.0.0
- * @version 1.0.0
  * @author Hakizumi
  */
 @RestController
@@ -56,6 +55,8 @@ public class ConversationController {
      *
      * @param request Conversation request from frontend
      * @return The assistant's reply.
+     *
+     * @since 1.0.0
      *
      * @see BaseLLMService#nonStreaming(ConversationRequest)
      */
@@ -91,6 +92,8 @@ public class ConversationController {
      *
      * @param request Conversation request from frontend
      * @return The reply's streaming flux.The {@link ConversationResponse#getMessage()} is the assistant's reply delta.
+     *
+     * @since 1.0.0
      *
      * @see BaseLLMService#streaming(ConversationRequest)
      */

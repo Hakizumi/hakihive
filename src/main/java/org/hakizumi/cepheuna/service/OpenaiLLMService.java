@@ -17,7 +17,6 @@ import reactor.core.publisher.Flux;
  * Calls OpenAI online large language model and get the reply.
  *
  * @since 1.0.0
- * @version 1.0.0
  * @author Hakizumi
  *
  * @see BaseLLMService
@@ -36,6 +35,8 @@ public class OpenaiLLMService implements BaseLLMService {
      *
      * @param request The input request
      * @return The assistant's reply
+     *
+     * @since 1.0.0
      *
      * @see ConversationController#sendMessageNonStreaming(ConversationRequest)
      */
@@ -87,6 +88,8 @@ public class OpenaiLLMService implements BaseLLMService {
      *
      * @param request The input request
      * @return The assistant's reply streaming flux
+     *
+     * @since 1.0.0
      *
      * @see ConversationController#sendMessageStreaming(ConversationRequest)
      * @see OpenaiLLMService#buildStreamingTokenFlux(ConversationRequest)

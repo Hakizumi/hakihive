@@ -6,7 +6,6 @@ import org.jspecify.annotations.NonNull;
  * Utility class of {@link String}.
  *
  * @since 1.0.0
- * @version 1.0.0
  * @author Hakizumi
  *
  * @see String
@@ -15,7 +14,14 @@ public class StringUtils {
     /** Utility class */
     private StringUtils() {}
 
-    /** Transform all escape characters to normal text */
+    /**
+     * Transform all escape characters to normal text
+     *
+     * @param text Target text
+     * @return Escaped text
+     *
+     * @since 1.0.0
+     */
     public static @NonNull String escapeJson(@NonNull String text) {
         if (text.isBlank()) return text;
 

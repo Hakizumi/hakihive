@@ -11,7 +11,6 @@ import reactor.core.publisher.Flux;
  * responsible for calling the online large model API or local model and get the reply.
  *
  * @since 1.0.0
- * @version 1.0.0
  * @author Hakizumi
  *
  * @see org.hakizumi.cepheuna.controller.ConversationController
@@ -21,10 +20,12 @@ public interface BaseLLMService {
     /**
      * Communicate with assistant non-streaming
      *
-     * @see org.hakizumi.cepheuna.controller.ConversationController#sendMessageNonStreaming(ConversationRequest)
-     *
      * @param request The input request
      * @return The assistant's reply
+     *
+     * @since 1.0.0
+     *
+     * @see org.hakizumi.cepheuna.controller.ConversationController#sendMessageNonStreaming(ConversationRequest)
      */
     ConversationResponse nonStreaming(ConversationRequest request);
 
@@ -33,7 +34,10 @@ public interface BaseLLMService {
      *
      * @param request The input request
      * @return The assistant's reply streaming flux
+     *
+     * @since 1.0.0
+     *
      * @see org.hakizumi.cepheuna.controller.ConversationController#sendMessageNonStreaming(ConversationRequest)
      */
-    Flux<@NotNull ServerSentEvent<ConversationResponse>> streaming(ConversationRequest request);
+    Flux<@NotNull ServerSentEvent<@NotNull ConversationResponse>> streaming(ConversationRequest request);
 }

@@ -10,7 +10,6 @@ import org.jetbrains.annotations.NotNull;
  * @see org.hakizumi.cepheuna.controller.ConversationController
  *
  * @since 1.0.0
- * @version 1.0.0
  * @author Hakizumi
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)

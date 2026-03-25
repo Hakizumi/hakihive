@@ -7,7 +7,6 @@ import lombok.Data;
  * Conversation controller request dto.
  *
  * @since 1.0.0
- * @version 1.0.0
  * @author Hakizumi
  *
  * @see org.hakizumi.cepheuna.controller.ConversationController
