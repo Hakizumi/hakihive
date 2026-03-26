@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-        "rootDir": "src/main/resources/static",
+        "rootDir": "src/main/resources/static/source",
         "outDir": "src/main/resources/static/dist",
         "target": "ES2022",
         "module": "ESNext",
