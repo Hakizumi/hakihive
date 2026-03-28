@@ -75,7 +75,7 @@ java -jar cepheuna-x.x.x.jar
 ```
 
 ### Third -- Talk with **Cepheuna**
-#### Open your browser ( Any one is ok ) and access http://localhost:11622/
+#### Open your browser ( Any one is ok ) and access http://localhost:11622/ ( or http://localhost:11622/chat )
 #### If you have seen the page,that means **Cepheuna** is running healthy.
 #### If not,check the program is running, the url you enter is correct.
 
