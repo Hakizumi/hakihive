@@ -40,7 +40,8 @@ public class SystemTools implements AgentTool {
      * current Java runtime. This may include sensitive values such as API keys,
      * secrets, tokens, proxy settings, and deployment-specific configuration.
      *
-     * <p><b>Use with caution.</b> In production scenarios, it is generally safer to
+     * <p>
+     * <b>Use with caution.</b> In production scenarios, it is generally safer to
      * expose only specific keys through {@link #getSystemEnvValue(String)} or to
      * implement an allowlist-based filter.
      *
@@ -102,8 +103,8 @@ public class SystemTools implements AgentTool {
 
     /**
      * Returns selected Java runtime and operating system properties.
-     *
-     * <p>This method intentionally exposes only a limited subset of system properties
+     * <p>
+     * This method intentionally exposes only a limited subset of system properties
      * that are generally useful for diagnostics:
      * <ul>
      *     <li>{@code os.name}</li>
@@ -127,8 +128,8 @@ public class SystemTools implements AgentTool {
 
     /**
      * Returns selected current user-related Java properties.
-     *
-     * <p>This method provides a subset of user properties that are commonly useful
+     * <p>
+     * This method provides a subset of user properties that are commonly useful
      * for execution-context diagnostics:
      * <ul>
      *     <li>{@code user.name}</li>
@@ -154,11 +155,11 @@ public class SystemTools implements AgentTool {
 
     /**
      * Returns basic local host addressing information.
-     *
-     * <p>This method attempts to resolve the current machine's local host name and
+     * <p>
+     * This method attempts to resolve the current machine's local host name and
      * IP address using {@link InetAddress#getLocalHost()}.
-     *
-     * <p>In some containerized or restricted network environments, host resolution
+     * <p>
+     * In some containerized or restricted network environments, host resolution
      * may fail or return non-public/internal addresses.
      *
      * @return a non-null map containing:

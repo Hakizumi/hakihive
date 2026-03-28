@@ -14,8 +14,8 @@ import reactor.core.publisher.Flux;
  * @author Hakizumi
  *
  * @see org.hakizumi.cepheuna.controller.ConversationController
- * @see LLMService Wrapped {@link BaseLLMService}
- * @see OpenaiLLMService An implementation class of calling OpenAI online model
+ * @see LLMService
+ * @see OpenaiLLMService
  */
 public interface BaseLLMService {
     /**
