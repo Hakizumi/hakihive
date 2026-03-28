@@ -5,6 +5,7 @@ import org.hakizumi.cepheuna.dto.ConversationResponse;
 import org.hakizumi.cepheuna.service.BaseLLMService;
 import org.hakizumi.cepheuna.service.LLMService;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,7 +28,7 @@ import reactor.core.publisher.Flux;
  * @author Hakizumi
  */
 @RestController
-@RequestMapping("/backend/conversation")
+@RequestMapping("/backend/chat")
 public class ConversationController {
     private final LLMService llmService;
 
@@ -41,7 +42,7 @@ public class ConversationController {
      * Request example:
      * <blockquote>
      * <pre>
-     * curl -X POST http://localhost:11622/backend/conversation/message_nonstreaming·
+     * curl -X POST http://localhost:11622/backend/chat/nonstreaming·
      *        -H "Content-Type: application/json"·
      *        -d '{"cid":"Conversation-id","message":"Your message"}'
      * </pre>
@@ -60,7 +61,7 @@ public class ConversationController {
      *
      * @see BaseLLMService#nonStreaming(ConversationRequest)
      */
-    @PostMapping("message_nonstreaming")
+    @PostMapping("nonstreaming")
     public ConversationResponse sendMessageNonStreaming(@RequestBody ConversationRequest request) {
         if (request == null) {
             return ConversationResponse.error("Request is null",400);
@@ -78,14 +79,44 @@ public class ConversationController {
      * Request example:
      * <blockquote>
      * <pre>
-     * curl -X POST http://localhost:11622/backend/conversation/message_streaming·
+     * curl -X POST http://localhost:11622/backend/chat/streaming·
      *        -H "Content-Type: application/json"·
      *        -d '{"cid":"Conversation-id","message":"Your message"}'
      * </pre>
      * </blockquote>
      * <p>
-     * Special returning:
-     * - 400 If request is null or input message is null.
+     * Output streaming flux format ( The same as {@link LLMService#streaming(ConversationRequest)} ):
+     * First: status
+     * <blockquote>
+     * <pre>
+     * event: status
+     * data: {"success":true,"message":"start"}
+     * </pre>
+     * </blockquote>
+     *
+     * Body: deltas
+     * <blockquote>
+     * <pre>
+     * event: delta
+     * data: {"success":true,"message":"assistant's reply delta"}
+     * </pre>
+     * </blockquote>
+     *
+     * Or when error occurred:
+     * <blockquote>
+     * <pre>
+     * event: error
+     * data: {"success":false,"error":"error","errorCode":500}
+     * </pre>
+     * </blockquote>
+     *
+     * Last: status
+     * <blockquote>
+     * <pre>
+     * event: status
+     * data: {"success":true,"message":"done"}
+     * </pre>
+     * </blockquote>
      * <p>
      * Allow the request's {@code cid} is null,
      * that mean it is {@code temporary conversation mode} ( No memory )
@@ -97,7 +128,7 @@ public class ConversationController {
      *
      * @see BaseLLMService#streaming(ConversationRequest)
      */
-    @PostMapping("message_streaming")
+    @PostMapping(path = "streaming", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<@NotNull ServerSentEvent<@NotNull ConversationResponse>> sendMessageStreaming(@RequestBody ConversationRequest request) {
         if (request == null) {
             return Flux.error(new IllegalArgumentException("Request is null"));
