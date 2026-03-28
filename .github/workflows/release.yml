@@ -42,6 +42,15 @@ jobs:
           cp target/cepheuna.jar "target/cepheuna-${TAG_NAME}.jar"
           echo "TAG_NAME=${TAG_NAME}" >> "$GITHUB_ENV"
 
+      - name: Prepare release description
+        run: |
+          COMMIT_MSG="$(git log -1 --pretty=%B)"
+          {
+            echo 'RELEASE_BODY<<EOF'
+            echo "## ${COMMIT_MSG}"
+            echo 'EOF'
+          } >> "$GITHUB_ENV"
+
       - name: Debug build outputs
         run: |
           ls -lah target || true
@@ -53,6 +62,7 @@ jobs:
         with:
           name: Cepheuna ${{ env.TAG_NAME }}
           tag_name: ${{ env.TAG_NAME }}
+          body: ${{ env.RELEASE_BODY }}
           files: |
             target/cepheuna-${{ env.TAG_NAME }}.jar
 
