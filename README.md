@@ -10,7 +10,9 @@
 * Talk to AI in the **cloud**.Even if your computer is not with you, you can still talk to Cepheuna and operate your computer through the web.
 
 ### Webpage screenshot 👇
-![webpage.png](assets/webpage.png)
+![webpage](assets/images/webpage.png)
+![memory_webpage](assets/images/memory_webpage.png)
+
 ---
 
 ## How to use? For developers
