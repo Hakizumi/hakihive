@@ -39,7 +39,7 @@ class ChatApp {
 
         this.newChatBtnEl.addEventListener("click", () => {
             this.cid = this.createCid();
-            localStorage.setItem("cepheuna-cid", this.cid);
+            localStorage.setItem("hakihive-cid", this.cid);
             this.cidTextEl.textContent = this.cid;
             this.messagesEl.innerHTML = "";
             this.addSystemMessage("Created new conversation.");
@@ -60,7 +60,7 @@ class ChatApp {
         this.autoResizeInput();
         this.inputEl.addEventListener("input", () => this.autoResizeInput());
 
-        this.addSystemMessage("Welcome to use Cepheuna.💬");
+        this.addSystemMessage("Welcome to use Hakihive.💬");
     }
 
     private async handleSubmit(): Promise<void> {
@@ -287,12 +287,12 @@ class ChatApp {
     }
 
     private loadOrCreateCid(): string {
-        const stored = localStorage.getItem("cepheuna-cid");
+        const stored = localStorage.getItem("hakihive-cid");
         if (stored && stored.trim()) {
             return stored;
         }
         const cid = this.createCid();
-        localStorage.setItem("cepheuna-cid", cid);
+        localStorage.setItem("hakihive-cid", cid);
         return cid;
     }
 

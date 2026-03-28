@@ -10,10 +10,10 @@
         <relativePath/>
     </parent>
 
-    <groupId>org.sempiria</groupId>
-    <artifactId>cepheuna</artifactId>
+    <groupId>org.hakizumi</groupId>
+    <artifactId>hakihive</artifactId>
     <version>1.4.0</version>
-    <name>cepheuna</name>
+    <name>hakihive</name>
 
     <properties>
         <java.version>21</java.version>
@@ -64,7 +64,7 @@
     </dependencyManagement>
 
     <build>
-        <finalName>cepheuna</finalName>
+        <finalName>hakihive</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

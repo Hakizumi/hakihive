@@ -39,7 +39,7 @@ jobs:
       - name: Prepare release jar name
         run: |
           TAG_NAME="${GITHUB_REF#refs/tags/}"
-          cp target/cepheuna.jar "target/cepheuna-${TAG_NAME}.jar"
+          cp target/hakihive.jar "target/hakihive-${TAG_NAME}.jar"
           echo "TAG_NAME=${TAG_NAME}" >> "$GITHUB_ENV"
 
       - name: Prepare release description
@@ -60,11 +60,11 @@ jobs:
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          name: Cepheuna ${{ env.TAG_NAME }}
+          name: Hakihive ${{ env.TAG_NAME }}
           tag_name: ${{ env.TAG_NAME }}
           body: ${{ env.RELEASE_BODY }}
           files: |
-            target/cepheuna-${{ env.TAG_NAME }}.jar
+            target/hakihive-${{ env.TAG_NAME }}.jar
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
