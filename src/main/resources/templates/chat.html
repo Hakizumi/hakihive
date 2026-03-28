@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Cepheuna Chat</title>
+	<link rel="stylesheet" th:href="@{/css/chat.css}" href="/css/chat.css" />
+</head>
+<body>
+	<div class="app">
+		<aside class="sidebar">
+			<div class="brand">
+				<h1>Cepheuna</h1>
+			</div>
+			
+			<div class="sidebar-section">
+				<button id="newChatBtn" class="secondary-btn" type="button">New conversation</button>
+				<button id="stopBtn" class="secondary-btn danger" type="button" disabled>Stop</button>
+			</div>
+			
+			<div class="sidebar-section">
+				<div class="label">Current conversation ID</div>
+				<div id="cidText" class="cid-box">-</div>
+			</div>
+			
+			<div class="sidebar-section tips">
+				<div class="label">Information:</div>
+				<ul>
+					<li>Enter - Sent</li>
+					<li>Shift + Enter - New line</li>
+					<li>Default goes streaming interface</li>
+				</ul>
+			</div>
+		</aside>
+		
+		<main class="main">
+			<header class="topbar">
+				<div class="mode-switch">
+					<label>
+						<input type="checkbox" id="streamingSwitch" checked />
+						<span>Streaming</span>
+					</label>
+				</div>
+			</header>
+			
+			<section id="messages" class="messages"></section>
+			
+			<footer class="composer">
+				<form id="chatForm" class="composer-form">
+					<textarea
+							id="messageInput"
+							class="message-input"
+							placeholder="Input..."
+							rows="1"
+					></textarea>
+					<button id="sendBtn" class="send-btn" type="submit">Send</button>
+				</form>
+			</footer>
+		</main>
+	</div>
+	
+	<script th:src="@{/dist/chat.js}" src="/dist/chat.js"></script>
+</body>
+</html>
