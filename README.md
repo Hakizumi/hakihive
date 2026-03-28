@@ -15,6 +15,9 @@
 ![webpage](assets/images/webpage.png)
 ![memory_webpage](assets/images/memory_webpage.png)
 
+Able to call tools:
+![tool_calling_webpage](assets/images/tool_calling_webpage.png)
+
 ---
 
 ## How to use? For developers
