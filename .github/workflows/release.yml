@@ -22,42 +22,36 @@ jobs:
             triplet: x64-linux-static
             archive_name: Hakihive-linux-x64
             exe_name: Hakihive
-            package_kind: tar.gz
 
           - name: linux-arm64
             runs_on: ubuntu-24.04-arm
             triplet: arm64-linux-static
             archive_name: Hakihive-linux-arm64
             exe_name: Hakihive
-            package_kind: tar.gz
 
           - name: windows-x64
             runs_on: windows-2025
             triplet: x64-windows-static
             archive_name: Hakihive-windows-x64
             exe_name: Hakihive.exe
-            package_kind: zip
 
           - name: windows-arm64
             runs_on: windows-11-arm
             triplet: arm64-windows-static
             archive_name: Hakihive-windows-arm64
             exe_name: Hakihive.exe
-            package_kind: zip
 
           - name: macos-intel
             runs_on: macos-15-intel
             triplet: x64-osx
             archive_name: Hakihive-macos-intel
             exe_name: Hakihive
-            package_kind: tar.gz
 
           - name: macos-arm64
             runs_on: macos-latest
             triplet: arm64-osx
             archive_name: Hakihive-macos-arm64
             exe_name: Hakihive
-            package_kind: tar.gz
 
     steps:
       - name: Checkout code
@@ -82,16 +76,22 @@ jobs:
           git clone https://github.com/microsoft/vcpkg.git "$env:RUNNER_TEMP/vcpkg"
           & "$env:RUNNER_TEMP/vcpkg/bootstrap-vcpkg.bat"
 
-      - name: Install dependencies (Unix)
+      - name: Install dependencies (Linux/macOS)
         if: runner.os != 'Windows'
         shell: bash
         run: |
+          EXTRA_ARGS=""
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            EXTRA_ARGS="--overlay-triplets=$GITHUB_WORKSPACE/triplets"
+          fi
+
           "$RUNNER_TEMP/vcpkg/vcpkg" install \
             curl:${{ matrix.triplet }} \
             nlohmann-json:${{ matrix.triplet }} \
             openssl:${{ matrix.triplet }} \
             libarchive:${{ matrix.triplet }} \
-            ftxui:${{ matrix.triplet }}
+            ftxui:${{ matrix.triplet }} \
+            $EXTRA_ARGS
 
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
@@ -104,15 +104,21 @@ jobs:
             libarchive:${{ matrix.triplet }} `
             ftxui:${{ matrix.triplet }}
 
-      - name: Configure CMake (Unix)
+      - name: Configure CMake (Linux/macOS)
         if: runner.os != 'Windows'
         shell: bash
         run: |
+          EXTRA_CFG=""
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            EXTRA_CFG="-DVCPKG_OVERLAY_TRIPLETS=$GITHUB_WORKSPACE/triplets"
+          fi
+
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_SHARED_LIBS=OFF \
             -DCMAKE_TOOLCHAIN_FILE="$RUNNER_TEMP/vcpkg/scripts/buildsystems/vcpkg.cmake" \
-            -DVCPKG_TARGET_TRIPLET="${{ matrix.triplet }}"
+            -DVCPKG_TARGET_TRIPLET="${{ matrix.triplet }}" \
+            $EXTRA_CFG
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
@@ -177,13 +183,6 @@ jobs:
               otool -L "dist/${{ matrix.exe_name }}" || true
             fi
           fi
-
-      - name: Show linked libraries (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Write-Host "Built file:"
-          Get-Item "dist/${{ matrix.exe_name }}" | Format-List FullName,Length
 
       - name: Package artifact (Unix)
         if: runner.os != 'Windows'
@@ -299,7 +298,7 @@ jobs:
             const tagName = process.env.TAG_NAME || process.env.GITHUB_REF_NAME;
             const sha = process.env.GITHUB_SHA;
             const owner = context.repo.owner;
-            const repo = context.repo.repo;
+            const repo = context.repo.repo.repo;
 
             function run(cmd) {
               return execSync(cmd, { encoding: 'utf8' }).trim();
@@ -365,9 +364,7 @@ jobs:
                     owner,
                     repo,
                     commit_sha: commitSha,
-                    mediaType: {
-                      previews: ['groot']
-                    }
+                    mediaType: { previews: ['groot'] }
                   }
                 );
 
@@ -453,16 +450,10 @@ jobs:
               output.push('');
             }
 
-            while (output.length && output[output.length - 1] === '') {
-              output.pop();
-            }
-            if (output.length && output[output.length - 1] === '---') {
-              output.pop();
-            }
+            while (output.length && output[output.length - 1] === '') output.pop();
+            if (output.length && output[output.length - 1] === '---') output.pop();
 
-            const notes = output.join('\n') + '\n';
-            fs.writeFileSync('RELEASE_NOTES.md', notes, 'utf8');
-            console.log(notes);
+            fs.writeFileSync('RELEASE_NOTES.md', output.join('\n') + '\n', 'utf8');
 
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
