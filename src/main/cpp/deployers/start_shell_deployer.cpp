@@ -1,14 +1,19 @@
 #include "start_shell_deployer.h"
 
 #include <fstream>
-#include <iostream>
 #include <string>
 
 #include "../utils/platform_util.h"
+#include "../dto/install_java_runtime_result.h"
 
-void deployStartShell()
+using std::endl;
+
+void deployStartShell(InstallJavaRuntimeResult java_runtime_result)
 {
     const std::string os = detectOs();
+
+    std::string javaCommand = java_runtime_result.useEnvironmentJava ?
+            "java -jar hakihive.jar" : "runtime/bin/java.exe -jar hakihive.jar";
 
     if (os == "windows")
     {
@@ -19,9 +24,10 @@ void deployStartShell()
             throw std::runtime_error("Error opening start shell file.");
         }
 
-        ofs << "@echo off";
-        ofs << "runtime/bin/java.exe -Dsherpa_onnx.native.path=./lib -jar hakihive.jar";
-        ofs << "pause";
+        ofs << "@echo off" << endl;
+
+        ofs << javaCommand << endl;
+        ofs << "pause" << endl;
 
         ofs.close();
     }
@@ -34,8 +40,8 @@ void deployStartShell()
             throw std::runtime_error("Error opening start shell file.");
         }
 
-        ofs << "#!/bin/sh";
-        ofs << "runtime/bin/java.exe -Dsherpa_onnx.native.path=./lib -jar hakihive.jar";
+        ofs << "#!/bin/sh" << endl;
+        ofs << javaCommand << endl;
 
         ofs.close();
     }

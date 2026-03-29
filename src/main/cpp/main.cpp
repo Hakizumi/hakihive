@@ -16,14 +16,14 @@ int main()
     {
         cout << "*** Hakihive one-click deployment CLI ***" << endl << endl;
 
-        cout << "1. >>> Create start shell <<<" << endl;
-        deployStartShell();
+        cout << "1. >>> Install Java Runtime Environment <<<" << endl;
+        const auto r1 = installJavaRuntime();
 
         cout << "2. >>> Download Hakihive jar <<<" << endl;
         downloadHakihiveJar();
 
-        cout << "3. >>> Install Java Runtime Environment <<<" << endl;
-        installJavaRuntime();
+        cout << "3. >>> Create start shell <<<" << endl;
+        deployStartShell(r1);
 
         cout << "5. >>> Create Spring configuration file <<<" << endl;
         deployApplicationConfig();

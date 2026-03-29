@@ -2,7 +2,9 @@
 
 #include <iostream>
 
-void installJavaRuntime();
+#include "../dto/install_java_runtime_result.h"
+
+InstallJavaRuntimeResult installJavaRuntime();
 
 int getEnvJavaRuntimeVersion();
 

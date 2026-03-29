@@ -21,7 +21,7 @@ void downloadHakihiveJar()
 
     req.url = "https://github.com/Hakizumi/hakihive/releases/download/v" + version + "/hakihive-v" + version + ".jar";
     req.displayName = "hakihive-v" + version + ".jar";
-    req.outputPath = fs::current_path();
+    req.outputPath = fs::current_path() / "hakihive.jar";
 
     if (const auto result = downloader::downloadFile(req); !result.ok) {
         throw std::runtime_error("Error downloading Hakihive jar: ");

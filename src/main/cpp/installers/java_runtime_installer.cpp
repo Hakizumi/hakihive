@@ -6,6 +6,7 @@
 #include "../utils/input_util.h"
 #include "java_runtime_base_installer.h"
 #include "java_runtime_installer.h"
+#include "../dto/install_java_runtime_result.h"
 
 #ifdef _WIN32
     // For compatibility
@@ -18,7 +19,7 @@ using std::cout;
 using std::endl;
 using std::cin;
 
-void installJavaRuntime()
+InstallJavaRuntimeResult installJavaRuntime()
 {
     if (const int java_ev = getEnvJavaRuntimeVersion(); java_ev >= 21)
     {
@@ -28,21 +29,26 @@ void installJavaRuntime()
         << " on environment,do you want to download a Java Runtime 21 in current path? ( Default No -- recommended ) ==="
         << endl;
 
-        if (getInputBoolean()) installTemurinJre();
+        if (getInputBoolean())
+        {
+            installTemurinJre();
+            return {false};
+        }
+        return {true};
     }
-    else if (const int java_pv = getPathJavaRuntimeVersion(); java_pv >= 21)
+    if (const int java_pv = getPathJavaRuntimeVersion(); java_pv >= 21)
     {
         cout
-        << "=== Detected Java Runtime "
-        << java_pv
-        << " on current path,skipped downloading ==="
-        << endl;
+            << "=== Detected Java Runtime "
+            << java_pv
+            << " on current path,skipped downloading ==="
+            << endl;
+        return {true};
     }
-    else
-    {
-        cout << "=== Java Runtime not detected,downloading ... ===" << endl;
-        installTemurinJre();
-    }
+
+    cout << "=== Java Runtime not detected,downloading ... ===" << endl;
+    installTemurinJre();
+    return {false};
 }
 
 int getEnvJavaRuntimeVersion() {
