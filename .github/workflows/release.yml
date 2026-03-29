@@ -20,32 +20,37 @@ jobs:
           - name: linux-x64
             runs_on: ubuntu-24.04
             triplet: x64-linux
-            archive_name: Hakihive-linux-x64
+            asset_name: Hakihive-linux-x64
             exe_name: Hakihive
+
           - name: linux-arm64
             runs_on: ubuntu-24.04-arm
             triplet: arm64-linux
-            archive_name: Hakihive-linux-arm64
+            asset_name: Hakihive-linux-arm64
             exe_name: Hakihive
+
           - name: windows-x64
             runs_on: windows-2025
-            triplet: x64-windows
-            archive_name: Hakihive-windows-x64
+            triplet: x64-windows-static
+            asset_name: Hakihive-windows-x64.exe
             exe_name: Hakihive.exe
+
           - name: windows-arm64
             runs_on: windows-11-arm
-            triplet: arm64-windows
-            archive_name: Hakihive-windows-arm64
+            triplet: arm64-windows-static
+            asset_name: Hakihive-windows-arm64.exe
             exe_name: Hakihive.exe
+
           - name: macos-arm64
             runs_on: macos-latest
             triplet: arm64-osx
-            archive_name: Hakihive-macos-arm64
+            asset_name: Hakihive-macos-arm64
             exe_name: Hakihive
+
           - name: macos-intel
             runs_on: macos-15-intel
             triplet: x64-osx
-            archive_name: Hakihive-macos-intel
+            asset_name: Hakihive-macos-intel
             exe_name: Hakihive
 
     steps:
@@ -123,62 +128,42 @@ jobs:
         run: |
           cmake --build build --config Release --target Hakihive -- /m:3
 
-      - name: Collect binary (Unix)
+      - name: Collect final binary (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          mkdir -p dist
+          mkdir -p release-files
           if [ -f "build/Hakihive" ]; then
-            cp "build/Hakihive" "dist/${{ matrix.exe_name }}"
+            cp "build/Hakihive" "release-files/${{ matrix.asset_name }}"
           elif [ -f "build/Release/Hakihive" ]; then
-            cp "build/Release/Hakihive" "dist/${{ matrix.exe_name }}"
+            cp "build/Release/Hakihive" "release-files/${{ matrix.asset_name }}"
           else
             echo "Hakihive binary not found"
             find build -maxdepth 4 -type f | sort
             exit 1
           fi
+          chmod +x "release-files/${{ matrix.asset_name }}"
 
-      - name: Collect binary (Windows)
+      - name: Collect final binary (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          New-Item -ItemType Directory -Force -Path release-files | Out-Null
           if (Test-Path "build/Release/Hakihive.exe") {
-            Copy-Item "build/Release/Hakihive.exe" "dist/${{ matrix.exe_name }}"
+            Copy-Item "build/Release/Hakihive.exe" "release-files/${{ matrix.asset_name }}"
           } elseif (Test-Path "build/Hakihive.exe") {
-            Copy-Item "build/Hakihive.exe" "dist/${{ matrix.exe_name }}"
+            Copy-Item "build/Hakihive.exe" "release-files/${{ matrix.asset_name }}"
           } else {
             Write-Host "Hakihive.exe not found"
             Get-ChildItem -Recurse build | Select-Object FullName
             exit 1
           }
 
-      - name: Package artifact (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          cd dist
-          tar -czf "${{ matrix.archive_name }}.tar.gz" "${{ matrix.exe_name }}"
-
-      - name: Package artifact (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Compress-Archive -Path "dist/${{ matrix.exe_name }}" -DestinationPath "dist/${{ matrix.archive_name }}.zip" -Force
-
-      - name: Upload artifact (Unix)
-        if: runner.os != 'Windows'
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.archive_name }}
-          path: dist/${{ matrix.archive_name }}.tar.gz
-
-      - name: Upload artifact (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.archive_name }}
-          path: dist/${{ matrix.archive_name }}.zip
+          name: ${{ matrix.name }}
+          path: release-files/${{ matrix.asset_name }}
 
   release:
     name: Create release
@@ -215,7 +200,7 @@ jobs:
           find release-assets -type f | sort
 
       - name: Build release notes from commits
-        uses: actions/github-script@v8
+        uses: actions/github-script@v7
         env:
           TAG_NAME: ${{ env.TAG_NAME }}
         with:
@@ -293,9 +278,7 @@ jobs:
                     owner,
                     repo,
                     commit_sha: commitSha,
-                    mediaType: {
-                      previews: ['groot']
-                    }
+                    mediaType: { previews: ['groot'] }
                   }
                 );
 
@@ -392,7 +375,7 @@ jobs:
             fs.writeFileSync('RELEASE_NOTES.md', notes, 'utf8');
             console.log(notes);
 
-      - name: Create GitHub Release and upload assets
+      - name: Create GitHub Release and upload binaries
         uses: softprops/action-gh-release@v2
         with:
           name: Hakihive ${{ env.TAG_NAME }}
@@ -402,7 +385,6 @@ jobs:
           prerelease: ${{ env.PRERELEASE == 'true' }}
           generate_release_notes: false
           files: |
-            release-assets/**/*.tar.gz
-            release-assets/**/*.zip
+            release-assets/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
