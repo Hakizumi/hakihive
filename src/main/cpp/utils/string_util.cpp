@@ -39,7 +39,7 @@ std::string toLowerCopy(std::string s)
     return s;
 }
 
-std::vector<string> splitBy(const std::string& s, std::string delimiter)
+std::vector<string> splitBy(const std::string& s, const std::string& delimiter)
 {
     std::vector<std::string> tokens;
 

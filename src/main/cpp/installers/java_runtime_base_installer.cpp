@@ -2,7 +2,6 @@
 
 #include <atomic>
 #include <filesystem>
-#include <iostream>
 #include <stdexcept>
 #include <string>
 
@@ -124,14 +123,9 @@ void installTemurinJre() {
         req.url = link;
         req.outputPath = outputPath;
         req.displayName = "Temurin JRE 21";
-        req.overwrite = true;
-        req.showProgress = true;
-        req.enableResume = true;
         req.verifySha256 = true;
         req.expectedSha256 = checksum;
         req.maxRetries = 3;
-        req.connectTimeoutSeconds = 15;
-        req.requestTimeoutSeconds = 0;
         req.cancelFlag = &cancelFlag;
 
         const auto [
@@ -159,7 +153,9 @@ void installTemurinJre() {
             );
         }
 
-        ZipExtractor::extract(savedPath.string(),(fs::current_path() / "runtime").string());
+        ZipExtractor::extract(savedPath.string(),
+            (fs::current_path() / "runtime").string(),
+            {ZipExtractor::Mode::CollapseSingleDirChainDropLeaf,true,true,true});
     } catch (const std::exception& ex) {
         throw std::runtime_error("Fatal error: " + std::string(ex.what()));
     }

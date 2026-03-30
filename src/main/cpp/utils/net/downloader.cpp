@@ -214,7 +214,8 @@ namespace {
             if (worker_.joinable()) worker_.join();
         }
 
-        std::string bar(const int pct) const {
+        static std::string bar(const int pct)
+        {
             constexpr int W = 20;
             const int filled = (std::max(0, std::min(100, pct)) * W) / 100;
             std::string s;
@@ -563,44 +564,44 @@ namespace downloader {
         return out;
     }
 
-    DownloadResult downloadFile(const DownloadRequest& req) {
+    DownloadResult downloadFile(const DownloadRequest& request) {
         DownloadResult result;
-        result.savedPath = req.outputPath;
+        result.savedPath = request.outputPath;
 
-        if (req.url.empty()) {
+        if (request.url.empty()) {
             result.error = "url is empty";
             return result;
         }
-        if (req.outputPath.empty()) {
+        if (request.outputPath.empty()) {
             result.error = "outputPath is empty";
             return result;
         }
 
         try {
             CurlGlobal::ensureInitialized();
-            ensureParentExists(req.outputPath);
+            ensureParentExists(request.outputPath);
         } catch (const std::exception& ex) {
             result.error = ex.what();
             return result;
         }
 
-        if (std::error_code ec; fs::exists(req.outputPath, ec) && !req.overwrite) {
-            result.error = "target file already exists: " + req.outputPath.string();
+        if (std::error_code ec; fs::exists(request.outputPath, ec) && !request.overwrite) {
+            result.error = "target file already exists: " + request.outputPath.string();
             return result;
         }
 
-        const fs::path tempPath = makeTempPathFor(req.outputPath);
+        const fs::path tempPath = makeTempPathFor(request.outputPath);
         TempFileGuard tempGuard(tempPath);
 
         std::optional<ProgressDisplay> display;
-        if (req.showProgress) {
-            std::string name = !req.displayName.empty() ? req.displayName :
-                               (req.outputPath.filename().empty() ? "download" : req.outputPath.filename().string());
+        if (request.showProgress) {
+            std::string name = !request.displayName.empty() ? request.displayName :
+                               (request.outputPath.filename().empty() ? "download" : request.outputPath.filename().string());
             display.emplace(name);
             display->start();
         }
 
-        int totalAttempts = std::max(1, req.maxRetries + 1);
+        int totalAttempts = std::max(1, request.maxRetries + 1);
         for (int i = 1; i <= totalAttempts; ++i) {
             result.attempts = i;
 
@@ -610,7 +611,7 @@ namespace downloader {
                 bytesWritten,
                 resumed,
                 error
-                ] = doSingleAttempt(req, tempPath, display ? &(*display) : nullptr);
+                ] = doSingleAttempt(request, tempPath, display ? &(*display) : nullptr);
 
             result.httpCode = httpCode;
             result.bytesWritten = bytesWritten;
@@ -625,7 +626,7 @@ namespace downloader {
 
             if (curlCode == CURLE_OK && isHttpSuccess(httpCode)) {
                 try {
-                    moveIntoPlace(tempPath, req.outputPath, req.overwrite);
+                    moveIntoPlace(tempPath, request.outputPath, request.overwrite);
                     tempGuard.release();
                 } catch (const std::exception& ex) {
                     result.error = ex.what();
@@ -633,15 +634,15 @@ namespace downloader {
                     return result;
                 }
 
-                if (req.verifySha256) {
+                if (request.verifySha256) {
                     std::string shaErr;
-                    std::string actual = sha256FileHex(req.outputPath, shaErr);
+                    std::string actual = sha256FileHex(request.outputPath, shaErr);
                     if (!shaErr.empty()) {
                         result.error = shaErr;
                         if (display) display->finish("failed");
                         return result;
                     }
-                    if (toLower(actual) != toLower(req.expectedSha256)) {
+                    if (toLower(actual) != toLower(request.expectedSha256)) {
                         result.error = "sha256 mismatch";
                         if (display) display->finish("failed");
                         return result;
@@ -650,7 +651,7 @@ namespace downloader {
                 }
 
                 result.ok = true;
-                result.savedPath = req.outputPath;
+                result.savedPath = request.outputPath;
                 if (display) display->finish("done");
                 return result;
             }
@@ -666,10 +667,10 @@ namespace downloader {
 
             {
                 std::lock_guard<std::mutex> lock(g_consoleMutex);
-                std::cerr << "\nretry " << i << "/" << req.maxRetries
+                std::cerr << "\nretry " << i << "/" << request.maxRetries
                           << " because: " << result.error << std::endl;
             }
-            std::this_thread::sleep_for(req.retryDelay);
+            std::this_thread::sleep_for(request.retryDelay);
         }
 
         if (display) display->finish("failed");
