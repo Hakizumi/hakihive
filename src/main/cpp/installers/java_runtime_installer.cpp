@@ -29,7 +29,7 @@ InstallJavaRuntimeResult installJavaRuntime()
         << " on environment,do you want to download a Java Runtime 21 in current path? ( Default No -- recommended ) ==="
         << endl;
 
-        if (getInputBoolean())
+        if (getInputBoolean(false))
         {
             installTemurinJre();
             return {false};
