@@ -25,7 +25,7 @@ int main()
         cout << "3. >>> Create start shell <<<" << endl;
         deployStartShell(r1);
 
-        cout << "5. >>> Create Spring configuration file <<<" << endl;
+        cout << "4. >>> Create Spring configuration file <<<" << endl;
         deployApplicationConfig();
 
         cout << "Deployed successfully." << endl;
