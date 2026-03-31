@@ -16,7 +16,7 @@ if (WIN32 AND NOT UNIX)
     # Prevent macro definition pollution of Windows
     target_compile_definitions(Hakihive PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 elseif (APPLE)
-    add_executable(Hakihive MACOSX_BUNDLE ${SRC_FILES})
+    add_executable(Hakihive ${SRC_FILES})
     set_target_properties(Hakihive PROPERTIES
             MACOSX_BUNDLE_ICON_FILE assets/icons/app.icns
     )
