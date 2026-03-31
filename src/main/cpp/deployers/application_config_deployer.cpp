@@ -32,7 +32,11 @@ hakihive:
 
   tools:
     # config about ai-agent-tools
+    system-tools:
+      enable: true
+
     io-tools:
+      enable: true
       # see org.hakizumi.hakihive.tools.IOTools
       whitelist:
         - E:/safe_path    # Safe path

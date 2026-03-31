@@ -8,6 +8,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -51,6 +52,7 @@ import java.util.stream.Stream;
  * @author Hakizumi
  */
 @Component
+@ConditionalOnBooleanProperty(value = "hakihive.tools.io-tools.enable",matchIfMissing = true)
 public class IOTools implements AgentTool {
     private final @NonNull List<Path> whitelistPaths;
     private final @NonNull List<Path> blacklistPaths;

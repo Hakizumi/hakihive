@@ -3,6 +3,7 @@ package org.hakizumi.hakihive.tools;
 import org.jspecify.annotations.NonNull;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.stereotype.Component;
 
 import java.net.InetAddress;
@@ -32,6 +33,7 @@ import java.util.Properties;
  * @since 1.2.0
  */
 @Component
+@ConditionalOnBooleanProperty(value = "hakihive.tools.system-tools.enable",matchIfMissing = true)
 public class SystemTools implements AgentTool {
     /**
      * Returns all system environment variables.
@@ -39,7 +41,6 @@ public class SystemTools implements AgentTool {
      * The returned map contains the complete process environment visible to the
      * current Java runtime. This may include sensitive values such as API keys,
      * secrets, tokens, proxy settings, and deployment-specific configuration.
-     *
      * <p>
      * <b>Use with caution.</b> In production scenarios, it is generally safer to
      * expose only specific keys through {@link #getSystemEnvValue(String)} or to
