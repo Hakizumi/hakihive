@@ -10,11 +10,21 @@ file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/main/cpp/*.cpp"
 )
 
-add_executable(Hakihive ${SRC_FILES})
+if (WIN32 AND NOT UNIX)
+    add_executable(Hakihive ${SRC_FILES} assets/icons/app.rc)
 
-if (WIN32)
     # Prevent macro definition pollution of Windows
     target_compile_definitions(Hakihive PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+elseif (APPLE)
+    add_executable(Hakihive MACOSX_BUNDLE ${SRC_FILES})
+    set_target_properties(Hakihive PROPERTIES
+            MACOSX_BUNDLE_ICON_FILE assets/icons/app.icns
+    )
+    set_source_files_properties(assets/icons/app.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+
+    target_sources(Hakihive PRIVATE assets/icons/app.icns)
+elseif (UNIX)
+    add_executable(Hakihive ${SRC_FILES})
 endif()
 
 find_package(CURL REQUIRED)
