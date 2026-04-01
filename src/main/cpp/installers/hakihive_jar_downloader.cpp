@@ -12,7 +12,8 @@ void downloadHakihiveJar()
     std::cout << "=== Choose a Hakihive version ===" << std::endl;
 
     const std::vector<std::string> versions = {
-        "1.5.0"
+        "1.5.0",
+        "1.6.0"
     };
 
     const std::string version = singleChoicesTui(versions);
