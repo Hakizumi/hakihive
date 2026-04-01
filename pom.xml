@@ -49,6 +49,12 @@
             <artifactId>annotations</artifactId>
             <version>26.1.0</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.k2fsa.sherpa.onnx</groupId>
+            <artifactId>sherpa-onnx</artifactId>
+            <version>1.12.34</version>
+        </dependency>
     </dependencies>
 
     <dependencyManagement>

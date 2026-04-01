@@ -15,6 +15,25 @@ hakihive:
     # Models config properties,see org/hakizumi/hakihive/config/ModelProperties
     decision-model: gpt-4  # main reply model
 
+    stt:
+      # Local speech to text model ( sherpa ) properties
+      # see org/hakizumi/hakihive/config/ModelProperties#Stt
+      enable: true
+
+      token-file-path: models/stt/tokens.txt
+      encoder-file-path: models/stt/encoder-epoch-99-avg-1.int8.onnx
+      decoder-file-path: models/stt/decoder-epoch-99-avg-1.int8.onnx
+      joiner-file-path: models/stt/joiner-epoch-99-avg-1.int8.onnx
+
+  audio:
+    # Properties for speech to text models
+    # see org/hakizumi/hakihive/config/AudioProperties
+
+    asr-threads: 1
+    vad-rms-threshold: 0.015
+    silence-trigger-frame: 18
+    speech-trigger-frame: 18
+
   tools:
     # config about ai-agent-tools
     system-tools:
