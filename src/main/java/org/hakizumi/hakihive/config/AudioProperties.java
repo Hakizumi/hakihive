@@ -19,6 +19,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Setter
 @ToString
 public class AudioProperties {
+    // ====== Audio format (recommended for streaming ASR) ======
+
+    /**
+     * Sample rate in Hz (e.g., 16000)
+     */
+    private int sampleRate = 16000;
+
     // ====== ASR properties ======
 
     /**

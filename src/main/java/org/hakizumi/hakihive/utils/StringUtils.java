@@ -59,4 +59,16 @@ public class StringUtils {
             throw new IllegalArgumentException("Unsupported charset: " + charsetName, e);
         }
     }
+
+    /**
+     * Normalize a text,if it is not null,returns it back.Else,returns an empty string.
+     *
+     * @param text Target text
+     * @return Normalized text
+     *
+     * @since 1.7.0
+     */
+    public static @NonNull String nullToEmpty(@Nullable String text) {
+        return text == null ? "" : text;
+    }
 }

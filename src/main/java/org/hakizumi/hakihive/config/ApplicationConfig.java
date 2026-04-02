@@ -1,5 +1,6 @@
 package org.hakizumi.hakihive.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hakizumi.hakihive.tools.AgentTool;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -45,5 +46,10 @@ public class ApplicationConfig {
                                 .build()
                 )
                 .build();
+    }
+
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
     }
 }

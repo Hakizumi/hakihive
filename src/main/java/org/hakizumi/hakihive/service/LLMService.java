@@ -8,7 +8,7 @@ import org.hakizumi.hakihive.dto.event.AssistantWholeReplyEvent;
 import org.hakizumi.hakihive.dto.event.UserNonStreamingInputEvent;
 import org.hakizumi.hakihive.repository.storage.ConversationStore;
 import org.hakizumi.hakihive.utils.StringUtils;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
@@ -109,7 +109,7 @@ public class LLMService {
      *
      * @since 1.4.0
      */
-    public Flux<@NotNull ServerSentEvent<@NotNull ConversationResponse>> streaming(ConversationRequest request) {
+    public Flux<@NonNull ServerSentEvent<@NonNull ConversationResponse>> streaming(ConversationRequest request) {
         applicationEventPublisher.publishEvent(new UserNonStreamingInputEvent(request));
 
         log.debug("Conversation-{} messages: {} ( streaming )",

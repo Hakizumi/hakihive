@@ -6,14 +6,18 @@ package org.hakizumi.hakihive.memory;
  * @see Conversation
  *
  * @since 1.0.0
- * @version 1.0.0
- * @author Sempiria
+ * @author Hakizumi
  */
 public enum ConversationState {
     /**
      * Both user and assistant are not active
      */
     IDLE,
+
+    /**
+     * User is speaking
+     */
+    LISTENING,
 
     /**
      * Assistant is thinking ( Nothing output )
