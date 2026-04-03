@@ -4,7 +4,7 @@ import org.hakizumi.hakihive.dto.ConversationRequest;
 import org.hakizumi.hakihive.dto.ConversationResponse;
 import org.hakizumi.hakihive.service.BaseLLMService;
 import org.hakizumi.hakihive.service.LLMService;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -132,7 +132,7 @@ public class ConversationController {
      * @see BaseLLMService#streaming(ConversationRequest)
      */
     @PostMapping(path = "streaming", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<@NotNull ServerSentEvent<@NotNull ConversationResponse>> sendMessageStreaming(@RequestBody ConversationRequest request) {
+    public Flux<@NonNull ServerSentEvent<@NonNull ConversationResponse>> sendMessageStreaming(@RequestBody ConversationRequest request) {
         if (request == null) {
             return Flux.error(new IllegalArgumentException("Request is null"));
         }
@@ -151,7 +151,7 @@ public class ConversationController {
      *
      * @param request Target {@link ConversationRequest}
      */
-    private void normalizeCid(@NotNull ConversationRequest request) {
+    private void normalizeCid(@NonNull ConversationRequest request) {
         if (request.getCid() == null || request.getCid().isBlank()) {
             request.setCid("temporary-" + UUID.randomUUID());
         }

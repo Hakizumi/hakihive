@@ -9,7 +9,6 @@ import org.hakizumi.hakihive.memory.Conversation;
 import org.hakizumi.hakihive.memory.ConversationState;
 import org.hakizumi.hakihive.repository.storage.ConversationStore;
 import org.hakizumi.hakihive.utils.AudioUtil;
-import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
@@ -81,8 +80,10 @@ public class ServerService {
         sherpaSttService.acceptWaveform(cid, samples, audioProperties.getSampleRate());
         String partial = sherpaSttService.getText(cid);
 
+        // statemachine
         if (speaking) {
             if (conversation.state != ConversationState.LISTENING) {
+                // start
                 conversation.state = ConversationState.LISTENING;
                 conversation.speechFrames = 0;
                 conversation.silenceFrames = 0;
@@ -94,10 +95,9 @@ public class ServerService {
                 conversation.lastPartial = partial;
                 outstreamService.onUserPartialText(new UserAudioRequest(partial, cid));
             }
-            return;
         }
-
-        if (conversation.state == ConversationState.LISTENING) {
+        else if (conversation.state == ConversationState.LISTENING) {
+            // stop
             conversation.silenceFrames++;
 
             if (!partial.isBlank() && !partial.equals(conversation.lastPartial)) {
@@ -191,7 +191,7 @@ public class ServerService {
     private void handleAssistantEvent(
             @NonNull Conversation conversation,
             @NonNull OutstreamService outstreamService,
-            @NotNull ServerSentEvent<@NotNull ConversationResponse> event
+            @NonNull ServerSentEvent<@NonNull ConversationResponse> event
     ) {
         outstreamService.onAssistantEvent(event);
 

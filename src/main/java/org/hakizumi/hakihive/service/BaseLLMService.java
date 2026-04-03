@@ -2,7 +2,7 @@ package org.hakizumi.hakihive.service;
 
 import org.hakizumi.hakihive.dto.ConversationRequest;
 import org.hakizumi.hakihive.dto.ConversationResponse;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
@@ -49,5 +49,5 @@ public interface BaseLLMService {
      * @see LLMService#streaming(ConversationRequest)
      * @see org.hakizumi.hakihive.controller.ConversationController#sendMessageNonStreaming(ConversationRequest)
      */
-    Flux<@NotNull ServerSentEvent<@NotNull ConversationResponse>> streaming(ConversationRequest request);
+    Flux<@NonNull ServerSentEvent<@NonNull ConversationResponse>> streaming(ConversationRequest request);
 }

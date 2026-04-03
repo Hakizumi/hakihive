@@ -2,7 +2,6 @@ package org.hakizumi.hakihive.service;
 
 import org.hakizumi.hakihive.dto.ConversationResponse;
 import org.hakizumi.hakihive.dto.UserAudioRequest;
-import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.codec.ServerSentEvent;
 
@@ -23,7 +22,7 @@ public interface OutstreamService {
         }
 
         @Override
-        public void onAssistantEvent(@NotNull ServerSentEvent<@NotNull ConversationResponse> event) {
+        public void onAssistantEvent(@NonNull ServerSentEvent<@NonNull ConversationResponse> event) {
         }
     };
 
@@ -46,7 +45,7 @@ public interface OutstreamService {
      *
      * @since 1.7.0
      */
-    void onAssistantEvent(@NotNull ServerSentEvent<@NotNull ConversationResponse> event);
+    void onAssistantEvent(@NonNull ServerSentEvent<@NonNull ConversationResponse> event);
 
     /**
      * Called when a session is connected.

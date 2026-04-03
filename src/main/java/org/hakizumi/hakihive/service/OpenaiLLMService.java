@@ -5,7 +5,7 @@ import org.hakizumi.hakihive.controller.ConversationController;
 import org.hakizumi.hakihive.dto.ConversationRequest;
 import org.hakizumi.hakihive.dto.ConversationResponse;
 import org.hakizumi.hakihive.repository.storage.ConversationStore;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
@@ -82,7 +82,7 @@ public class OpenaiLLMService implements BaseLLMService {
      * @see org.hakizumi.hakihive.controller.ConversationController#sendMessageNonStreaming(ConversationRequest)
      */
     @Override
-    public Flux<@NotNull ServerSentEvent<@NotNull ConversationResponse>> streaming(ConversationRequest request) {
+    public Flux<@NonNull ServerSentEvent<@NonNull ConversationResponse>> streaming(ConversationRequest request) {
         if (request == null) {
             return Flux.just(
                     ServerSentEvent.builder(

@@ -5,10 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hakizumi.hakihive.dto.ConversationResponse;
 import org.hakizumi.hakihive.dto.UserAudioRequest;
 import org.hakizumi.hakihive.service.OutstreamService;
-import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
@@ -74,7 +74,7 @@ public final class SessionOutstreamService implements OutstreamService {
      * @since 1.7.0
      */
     @Override
-    public void onAssistantEvent(@NotNull ServerSentEvent<@NotNull ConversationResponse> event) {
+    public void onAssistantEvent(@NonNull ServerSentEvent<@NonNull ConversationResponse> event) {
         String eventName = event.event();
 
         if (event.data() == null) return;
@@ -163,7 +163,7 @@ public final class SessionOutstreamService implements OutstreamService {
         }
     }
 
-    private void sendMessage(org.springframework.web.socket.@NotNull WebSocketMessage<?> message) {
+    private void sendMessage(@NonNull WebSocketMessage<?> message) {
         if (closed.get() || !session.isOpen()) {
             return;
         }
