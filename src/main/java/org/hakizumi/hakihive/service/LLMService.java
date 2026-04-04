@@ -1,6 +1,7 @@
 package org.hakizumi.hakihive.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.hakizumi.hakihive.controller.ConversationController;
 import org.hakizumi.hakihive.dto.ConversationRequest;
 import org.hakizumi.hakihive.dto.ConversationResponse;
 import org.hakizumi.hakihive.dto.event.AssistantDeltaReplyEvent;
@@ -51,7 +52,7 @@ public class LLMService {
      *
      * @since 1.4.0
      *
-     * @see org.hakizumi.hakihive.controller.ConversationController#sendMessageNonStreaming(ConversationRequest)
+     * @see ConversationController#sendMessageNonStreaming(ConversationRequest)
      */
     public ConversationResponse nonStreaming(ConversationRequest request) {
         applicationEventPublisher.publishEvent(new UserNonStreamingInputEvent(request));

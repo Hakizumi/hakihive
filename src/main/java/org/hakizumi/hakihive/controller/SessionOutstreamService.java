@@ -43,6 +43,13 @@ public final class SessionOutstreamService implements OutstreamService {
 
     /**
      * User STT partial text update.
+     * <p>
+     * Reply JSON like:
+     * <blockquote>
+     * <pre>
+     *  {"type":"stt_partial","cid":"conversation-id","text":"stt_partial_text"}
+     * </pre>
+     * </blockquote>
      *
      * @since 1.7.0
      */
@@ -57,6 +64,13 @@ public final class SessionOutstreamService implements OutstreamService {
 
     /**
      * User STT final text update.
+     * <p>
+     * Reply JSON like:
+     * <blockquote>
+     * <pre>
+     *  {"type":"stt_final","cid":"conversation-id","text":"stt_final_whole_text"}
+     * </pre>
+     * </blockquote>
      *
      * @since 1.7.0
      */
@@ -71,6 +85,26 @@ public final class SessionOutstreamService implements OutstreamService {
 
     /**
      * Assistant token/status event.
+     <p>
+     * Reply JSON like:
+     * <blockquote>
+     * <pre>
+     *  {"type":"assistant_text","cid":"conversation-id","text":"assistant_reply_dela"}
+     * </pre>
+     * </blockquote>
+     * Or is status flag:
+     * <blockquote>
+     * <pre>
+     *  {"type":"assistant_start","cid":"conversation-id"}
+     *  {"type":"assistant_finish","cid":"conversation-id"}
+     * </pre>
+     * </blockquote>
+     * Or when error occurred
+     * <blockquote>
+     * <pre>
+     *  {"type":"error","cid":"conversation-id","text":"error_message"}
+     * </pre>
+     * </blockquote>
      *
      * @since 1.7.0
      */
@@ -108,6 +142,13 @@ public final class SessionOutstreamService implements OutstreamService {
 
     /**
      * Called when a session is connected.
+     * <p>
+     * Reply JSON like:
+     * <blockquote>
+     * <pre>
+     *  {"type":"connected","cid":"conversation-id"}
+     * </pre>
+     * </blockquote>
      *
      * @since 1.7.0
      */
@@ -118,6 +159,13 @@ public final class SessionOutstreamService implements OutstreamService {
 
     /**
      * Called when the current turn is stopped.
+     * <p>
+     * Reply JSON like:
+     * <blockquote>
+     * <pre>
+     *  {"type":"stopped","cid":"conversation-id"}
+     * </pre>
+     * </blockquote>
      *
      * @since 1.7.0
      */
@@ -128,6 +176,13 @@ public final class SessionOutstreamService implements OutstreamService {
 
     /**
      * Called as a reply for ping.
+     * <p>
+     * Reply JSON like:
+     * <blockquote>
+     * <pre>
+     *  {"type":"pong","cid":"conversation-id"}
+     * </pre>
+     * </blockquote>
      *
      * @since 1.7.0
      */
@@ -138,16 +193,30 @@ public final class SessionOutstreamService implements OutstreamService {
 
     /**
      * Called on server-side errors.
+     * <p>
+     * Reply JSON like:
+     * <blockquote>
+     * <pre>
+     *  {"type":"error","cid":"conversation-id","text":"error_message"}
+     * </pre>
+     * </blockquote>
      *
      * @since 1.7.0
      */
     @Override
     public void onError(@NonNull String cid, @NonNull String message) {
-        sendJson(Map.of("type", "error", "cid", cid, "message", message));
+        sendJson(Map.of("type", "error", "cid", cid, "text", message));
     }
 
     /**
      * Stops local playback/output state immediately.
+     * <p>
+     * Reply JSON like:
+     * <blockquote>
+     * <pre>
+     *  {"type":"client_stop","cid":"conversation-id"}
+     * </pre>
+     * </blockquote>
      *
      * @since 1.7.0
      */
