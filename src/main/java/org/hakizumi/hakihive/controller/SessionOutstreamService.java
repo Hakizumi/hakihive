@@ -3,6 +3,7 @@ package org.hakizumi.hakihive.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hakizumi.hakihive.dto.ConversationResponse;
+import org.hakizumi.hakihive.dto.OutstreamResponse;
 import org.hakizumi.hakihive.dto.UserAudioRequest;
 import org.hakizumi.hakihive.service.OutstreamService;
 import org.hakizumi.hakihive.utils.StringUtils;
@@ -13,7 +14,6 @@ import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -55,11 +55,9 @@ public final class SessionOutstreamService implements OutstreamService {
      */
     @Override
     public void onUserPartialText(@NonNull UserAudioRequest request) {
-        sendJson(Map.of(
-                "type", "stt_partial",
-                "cid", request.cid(),
-                "text", request.text()
-        ));
+        sendResponse(
+                new OutstreamResponse("stt_partial",request.cid(),request.text())
+        );
     }
 
     /**
@@ -76,11 +74,9 @@ public final class SessionOutstreamService implements OutstreamService {
      */
     @Override
     public void onUserFinalText(@NonNull UserAudioRequest request) {
-        sendJson(Map.of(
-                "type", "stt_final",
-                "cid", request.cid(),
-                "text", request.text()
-        ));
+        sendResponse(
+                new OutstreamResponse("stt_final",request.cid(),request.text())
+        );
     }
 
     /**
@@ -117,25 +113,29 @@ public final class SessionOutstreamService implements OutstreamService {
         String data = event.data().getMessage();
 
         if ("delta".equals(eventName)) {
-            sendJson(Map.of(
-                    "type", "assistant_text",
-                    "cid", cid,
-                    "text", StringUtils.nullToEmpty(data)
-            ));
+            sendResponse(
+                    new OutstreamResponse("assistant_text",cid,StringUtils.nullToEmpty(data))
+            );
             return;
         }
 
         if ("status".equals(eventName) && data != null) {
             if (data.contains("\"state\":\"start\"")) {
-                sendJson(Map.of("type", "assistant_start", "cid", cid));
+                sendResponse(
+                        new OutstreamResponse("assistant_start",cid)
+                );
                 return;
             }
             if (data.contains("\"state\":\"done\"")) {
-                sendJson(Map.of("type", "assistant_finish", "cid", cid));
+                sendResponse(
+                        new OutstreamResponse("assistant_finish",cid)
+                );
                 return;
             }
             if (data.contains("\"error\"")) {
-                sendJson(Map.of("type", "error", "cid", cid, "message", data));
+                sendResponse(new OutstreamResponse(
+                        "error", cid, data)
+                );
             }
         }
     }
@@ -154,7 +154,9 @@ public final class SessionOutstreamService implements OutstreamService {
      */
     @Override
     public void onConnected(@NonNull String cid) {
-        sendJson(Map.of("type", "connected", "cid", cid));
+        sendResponse(
+                new OutstreamResponse("connected", cid)
+        );
     }
 
     /**
@@ -171,7 +173,9 @@ public final class SessionOutstreamService implements OutstreamService {
      */
     @Override
     public void onStopped(@NonNull String cid) {
-        sendJson(Map.of("type", "stopped", "cid", cid));
+        sendResponse(
+                new OutstreamResponse("stopped",cid)
+        );
     }
 
     /**
@@ -188,7 +192,9 @@ public final class SessionOutstreamService implements OutstreamService {
      */
     @Override
     public void onPong(@NonNull String cid) {
-        sendJson(Map.of("type", "pong", "cid", cid));
+        sendResponse(
+                new OutstreamResponse("pong", cid)
+        );
     }
 
     /**
@@ -205,7 +211,9 @@ public final class SessionOutstreamService implements OutstreamService {
      */
     @Override
     public void onError(@NonNull String cid, @NonNull String message) {
-        sendJson(Map.of("type", "error", "cid", cid, "text", message));
+        sendResponse(
+                new OutstreamResponse( "error", cid, message)
+        );
     }
 
     /**
@@ -222,10 +230,12 @@ public final class SessionOutstreamService implements OutstreamService {
      */
     @Override
     public void stop() {
-        sendJson(Map.of("type", "client_stop", "cid", cid));
+        sendResponse(
+                new OutstreamResponse("client_stop",cid)
+        );
     }
 
-    private void sendJson(Map<String, Object> payload) {
+    private void sendResponse(OutstreamResponse payload) {
         try {
             sendMessage(new TextMessage(objectMapper.writeValueAsString(payload)));
         } catch (JsonProcessingException e) {
