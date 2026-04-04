@@ -116,27 +116,23 @@ public final class SessionOutstreamService implements OutstreamService {
             sendResponse(
                     new OutstreamResponse("assistant_text",cid,StringUtils.nullToEmpty(data))
             );
-            return;
         }
-
-        if ("status".equals(eventName) && data != null) {
-            if (data.contains("\"state\":\"start\"")) {
+        else if ("status".equals(eventName) && data != null) {
+            if (data.contains("start")) {
                 sendResponse(
                         new OutstreamResponse("assistant_start",cid)
                 );
-                return;
             }
-            if (data.contains("\"state\":\"done\"")) {
+            else if (data.contains("done")) {
                 sendResponse(
                         new OutstreamResponse("assistant_finish",cid)
                 );
-                return;
             }
-            if (data.contains("\"error\"")) {
-                sendResponse(new OutstreamResponse(
-                        "error", cid, data)
-                );
-            }
+        }
+        else if ("error".equals(eventName) && data != null) {
+            sendResponse(new OutstreamResponse(
+                    "error", cid, data)
+            );
         }
     }
 
