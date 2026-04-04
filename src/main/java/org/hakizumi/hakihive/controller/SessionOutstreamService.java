@@ -56,7 +56,7 @@ public final class SessionOutstreamService implements OutstreamService {
     }
 
     /**
-     * Assistant token/status event.
+     * User STT final text update.
      *
      * @since 1.7.0
      */
@@ -70,7 +70,7 @@ public final class SessionOutstreamService implements OutstreamService {
     }
 
     /**
-     * Called when a session is connected.
+     * Assistant token/status event.
      *
      * @since 1.7.0
      */
@@ -107,7 +107,7 @@ public final class SessionOutstreamService implements OutstreamService {
     }
 
     /**
-     * Called when the current turn is stopped.
+     * Called when a session is connected.
      *
      * @since 1.7.0
      */
