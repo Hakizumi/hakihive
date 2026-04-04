@@ -2,6 +2,7 @@ package org.hakizumi.hakihive.service;
 
 import com.k2fsa.sherpa.onnx.OnlineRecognizer;
 import com.k2fsa.sherpa.onnx.OnlineRecognizerConfig;
+import com.k2fsa.sherpa.onnx.OnlineRecognizerResult;
 import com.k2fsa.sherpa.onnx.OnlineStream;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +11,6 @@ import org.jspecify.annotations.NonNull;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.stereotype.Component;
 
-import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -67,22 +67,12 @@ public class SherpaOnnxSttService {
         OnlineRecognizer recognizer = getRecognizer(cid);
         OnlineStream stream = getStream(cid);
         try {
-            Object result = recognizer.getClass().getMethod("getResult", stream.getClass()).invoke(recognizer, stream);
+            OnlineRecognizerResult result = recognizer.getResult(stream);
             if (result == null) {
                 return "";
             }
 
-            for (@NonNull String methodName : new String[]{"getText", "text"}) {
-                try {
-                    Method method = result.getClass().getMethod(methodName);
-                    Object value = method.invoke(result);
-                    return value == null ? "" : value.toString().trim();
-                }
-                catch (NoSuchMethodException ignored) {
-                    // try next
-                }
-            }
-            return result.toString().trim();
+            return result.getText().trim();
         }
         catch (Exception ex) {
             throw new IllegalStateException("Cannot read sherpa result conversation.", ex);
