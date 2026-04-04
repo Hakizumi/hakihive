@@ -64,6 +64,9 @@ public class LLMService {
 
         ConversationResponse resp = baseLLMService.nonStreaming(request);
         applicationEventPublisher.publishEvent(new AssistantWholeReplyEvent(request,resp));
+        log.debug("Conversation-{} reply: {} ( non-streaming )",
+                request.getCid(),resp.getMessage()
+        );
         return resp;
     }
 
@@ -120,9 +123,9 @@ public class LLMService {
 
         /*
          Current assistant's reply message delta.
-         Without the previous delta as the prefix.
+         With the previous delta as the prefix.
          Like:
-         I -> hav -> e a -> n app -> le.
+         I -> I have -> I have an -> I have an apple
          */
         AtomicReference<String> ref = new AtomicReference<>("");
 
@@ -132,7 +135,7 @@ public class LLMService {
                 baseLLMService.streaming(request)
                     .doOnNext((event) -> {
                         if (event.event() != null && event.event().equalsIgnoreCase("delta") && event.data() != null) {
-                            ref.set(event.data().getMessage());
+                            ref.set(ref.get() + event.data().getMessage());
                             applicationEventPublisher.publishEvent(new AssistantDeltaReplyEvent(request,event.data()));
                         }
                     })
@@ -145,7 +148,12 @@ public class LLMService {
                                 .event("error")
                                 .build());
                     })
-                    .doOnComplete(() -> applicationEventPublisher.publishEvent(new AssistantWholeReplyEvent(request,ConversationResponse.success(ref.get())))),
+                    .doOnComplete(() -> {
+                        applicationEventPublisher.publishEvent(new AssistantWholeReplyEvent(request, ConversationResponse.success(ref.get())));
+                        log.debug("Conversation-{} reply: {} ( streaming )",
+                                request.getCid(),ref.get()
+                        );
+                    }),
 
                 Flux.just(ServerSentEvent.builder(ConversationResponse.success("done")).event("status").build())
         );
