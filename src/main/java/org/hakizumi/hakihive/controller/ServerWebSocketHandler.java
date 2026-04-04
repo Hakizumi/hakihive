@@ -22,13 +22,10 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.hakizumi.hakihive.service.OutstreamService.NOOP_OUTSTREAM;
-
 /**
  * Browser websocket endpoint.
  * <p>
- * Text control messages remain JSON. Assistant audio chunks are sent as binary websocket frames
- * whose payload layout is: {@code UTF-8 JSON header + '\n' + raw audio bytes}.
+ * Text control messages remain JSON. Browser audio chunks are sent as binary websocket frames.
  *
  * @since 1.7.0
  * @author Hakizumi
@@ -94,13 +91,17 @@ public class ServerWebSocketHandler extends AbstractWebSocketHandler {
             return;
         }
 
-        cid = parseCidFromCommand(command,cid);
-
         switch (command.normalizedType()) {
             case "chat" -> serverService.onUserText(cid, StringUtils.nullToEmpty(command.text()), outstream);
             case "stop" -> serverService.stopConversation(cid, outstream);
             case "ping" -> outstream.onPong(cid);
-            default -> log.info("Unknown command from frontend: {}",command.normalizedType());
+            case "audio_meta" -> {
+                Integer sampleRate = command.sampleRate();
+                if (sampleRate != null && sampleRate > 0) {
+                    serverService.onAudioMetadata(cid, sampleRate);
+                }
+            }
+            default -> log.info("Unknown command from frontend: {}", command.normalizedType());
         }
     }
 
@@ -133,7 +134,7 @@ public class ServerWebSocketHandler extends AbstractWebSocketHandler {
             outstream.markClosed();
         }
         if (cid != null) {
-            serverService.stopConversation(cid, NOOP_OUTSTREAM);
+            serverService.closeConversation(cid);
         }
         super.afterConnectionClosed(session, status);
     }
@@ -169,9 +170,5 @@ public class ServerWebSocketHandler extends AbstractWebSocketHandler {
             return null;
         }
         return UriParseUtil.parseUriQuery(uri).get("cid");
-    }
-
-    private String parseCidFromCommand(@NonNull FrontendWsCommand command, String fallbackCid) {
-        return command.cid() == null || command.cid().isBlank() ? fallbackCid : command.cid();
     }
 }

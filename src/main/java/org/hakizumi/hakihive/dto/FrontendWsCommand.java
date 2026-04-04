@@ -8,18 +8,18 @@ import org.jspecify.annotations.NonNull;
  * Serialized like:
  * <blockquote>
  * <pre>
- * {"type":"xx","cid":"conversation-id","text":"text"}
+ * {"type":"xx","text":"text","sampleRate":16000}
  * </pre>
  * </blockquote>
  *
- * @param type command type, e.g. chat / stop / ping
- * @param cid conversation id
+ * @param type command type, e.g. chat / stop / ping / audio_meta
  * @param text user conversation
+ * @param sampleRate sample rate in Hz for streamed audio chunks
  *
  * @since 1.7.0
  * @author Hakizumi
  */
-public record FrontendWsCommand(String type, String cid, String text) {
+public record FrontendWsCommand(String type, String text, Integer sampleRate) {
     /**
      * Returns the normalized command type.
      */
