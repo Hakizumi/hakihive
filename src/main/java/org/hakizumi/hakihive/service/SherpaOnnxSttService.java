@@ -7,6 +7,7 @@ import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jspecify.annotations.NonNull;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -23,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author Hakizumi
  */
 @Component
+@ConditionalOnBooleanProperty(value = "hakihive.models.stt.enable",matchIfMissing = true)
 @Slf4j
 public class SherpaOnnxSttService {
     private final Map<String, Map.Entry<OnlineRecognizer, OnlineStream>> sherpaEntries = new ConcurrentHashMap<>();
