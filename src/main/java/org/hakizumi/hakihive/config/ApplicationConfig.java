@@ -9,6 +9,7 @@ import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.socket.config.annotation.EnableWebSocket;
 
 import java.util.List;
 
@@ -20,6 +21,7 @@ import java.util.List;
  */
 @Configuration
 @ConfigurationPropertiesScan("org.hakizumi.hakihive")
+@EnableWebSocket
 public class ApplicationConfig {
     /**
      * Chat client of OpenAI chat model.
