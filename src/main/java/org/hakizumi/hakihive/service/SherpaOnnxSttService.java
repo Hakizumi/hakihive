@@ -7,7 +7,6 @@ import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Unmodifiable;
 import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
@@ -50,10 +49,10 @@ public class SherpaOnnxSttService {
         OnlineRecognizer recognizer = getRecognizer(cid);
         OnlineStream stream = getStream(cid);
 
-        invokeAcceptWaveform(stream, sampleRate, samples);
+        stream.acceptWaveform(samples, sampleRate);
 
-        while (invokeBoolean(recognizer, "isReady", stream)) {
-            invokeVoid(recognizer, "decode", stream);
+        while (recognizer.isReady(stream)) {
+            recognizer.decode(stream);
         }
     }
 
@@ -96,7 +95,7 @@ public class SherpaOnnxSttService {
     public boolean isEndpoint(@NonNull String cid) {
         OnlineRecognizer recognizer = getRecognizer(cid);
         OnlineStream stream = getStream(cid);
-        return invokeBoolean(recognizer, "isEndpoint", stream) || invokeBoolean(stream, "isEndpoint");
+        return recognizer.isEndpoint(stream);
     }
 
     /**
@@ -108,10 +107,7 @@ public class SherpaOnnxSttService {
         OnlineRecognizer recognizer = getRecognizer(cid);
         OnlineStream stream = getStream(cid);
 
-        boolean ok = invokeVoidMaybe(recognizer, "reset", stream);
-        if (!ok) {
-            invokeVoidMaybe(stream, "reset");
-        }
+        recognizer.reset(stream);
     }
 
     /**
@@ -122,16 +118,16 @@ public class SherpaOnnxSttService {
     public void closeConversation(@NonNull String cid) {
         Map.Entry<OnlineRecognizer, OnlineStream> entry = sherpaEntries.remove(cid);
         if (entry != null) {
-            safeRelease(entry.getValue());
-            safeRelease(entry.getKey());
+            entry.getValue().release();
+            entry.getKey().release();
         }
     }
 
     @PreDestroy
     public void destroy() {
         for (Map.@NonNull Entry<OnlineRecognizer, OnlineStream> entry : sherpaEntries.values()) {
-            safeRelease(entry.getValue());
-            safeRelease(entry.getKey());
+            entry.getValue().release();
+            entry.getKey().release();
         }
         sherpaEntries.clear();
     }
@@ -140,70 +136,5 @@ public class SherpaOnnxSttService {
         OnlineRecognizer recognizer = new OnlineRecognizer(config);
         OnlineStream stream = recognizer.createStream();
         return Map.entry(recognizer, stream);
-    }
-
-    private void invokeAcceptWaveform(@NonNull OnlineStream stream, int sampleRate, float[] samples) {
-        try {
-            try {
-                Method m = stream.getClass().getMethod("acceptWaveform", int.class, float[].class);
-                m.invoke(stream, sampleRate, samples);
-            }
-            catch (NoSuchMethodException ignored) {
-                Method m = stream.getClass().getMethod("acceptWaveform", float[].class, int.class);
-                m.invoke(stream, samples, sampleRate);
-            }
-        }
-        catch (Exception ex) {
-            throw new IllegalStateException("Cannot feed audio into sherpa stream.", ex);
-        }
-    }
-
-    private boolean invokeBoolean(@NonNull Object target, @NonNull String methodName, Object @NonNull ... args) {
-        try {
-            Class<?>[] argTypes = new Class<?>[args.length];
-            for (int i = 0; i < args.length; i++) {
-                argTypes[i] = args[i].getClass();
-            }
-            Method m = target.getClass().getMethod(methodName, argTypes);
-            Object value = m.invoke(target, args);
-            return value instanceof Boolean b && b;
-        }
-        catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private void invokeVoid(@NonNull Object target, @NonNull String methodName, Object... args) {
-        if (!invokeVoidMaybe(target, methodName, args)) {
-            throw new IllegalStateException("Cannot invoke method: " + methodName);
-        }
-    }
-
-    private boolean invokeVoidMaybe(@NonNull Object target, @NonNull String methodName, Object @NonNull ... args) {
-        try {
-            Class<?>[] argTypes = new Class<?>[args.length];
-            for (int i = 0; i < args.length; i++) {
-                argTypes[i] = args[i].getClass();
-            }
-            Method m = target.getClass().getMethod(methodName, argTypes);
-            m.invoke(target, args);
-            return true;
-        }
-        catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private void safeRelease(@Nullable Object target) {
-        if (target == null) {
-            return;
-        }
-        try {
-            Method m = target.getClass().getMethod("release");
-            m.invoke(target);
-        }
-        catch (Exception ignored) {
-            // ignore
-        }
     }
 }
