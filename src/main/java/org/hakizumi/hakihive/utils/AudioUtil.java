@@ -91,7 +91,8 @@ public class AudioUtil {
      */
     @Contract(pure = true)
     public static float @NonNull [] pcm16leToFloat(byte @NonNull [] pcm16le) {
-        int nSamples = pcm16le.length / 2;
+        int usableLength = pcm16le.length - (pcm16le.length % 2);
+        int nSamples = usableLength / 2;
         float[] out = new float[nSamples];
         for (int i = 0; i < nSamples; i++) {
             int lo = pcm16le[2 * i] & 0xFF;
@@ -179,6 +180,9 @@ public class AudioUtil {
                 return data;
             }
             offset += 8 + Math.max(0, chunkSize);
+            if ((chunkSize & 1) != 0) {
+                offset += 1;
+            }
         }
         return wavBytes;
     }

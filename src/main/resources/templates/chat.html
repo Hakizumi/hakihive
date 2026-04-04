@@ -28,7 +28,8 @@
 				<ul>
 					<li>Enter - Sent</li>
 					<li>Shift + Enter - New line</li>
-					<li>Default goes streaming interface</li>
+					<li>Mic button - Stream PCM16LE audio to backend</li>
+					<li>User bubble is driven by backend STT events</li>
 				</ul>
 			</div>
 		</aside>
@@ -38,14 +39,29 @@
 			
 			<footer class="composer">
 				<form id="chatForm" class="composer-form">
-					<label for="messageInput"></label>
-					<textarea
-							id="messageInput"
-							class="message-input"
-							placeholder="Input..."
-							rows="1"
-					></textarea>
-					<button id="sendBtn" class="send-btn" type="submit">Send</button>
+					<div class="composer-input-area">
+						<label for="messageInput" class="sr-only">Message</label>
+						<textarea
+								id="messageInput"
+								class="message-input"
+								placeholder="Input..."
+								rows="1"
+						></textarea>
+						<div id="voicePanel" class="voice-panel" aria-hidden="true">
+							<div class="voice-panel-header">
+								<span class="voice-dot"></span>
+								<span id="voiceStatusText">Recording PCM16LE audio...</span>
+							</div>
+							<div class="voice-bars" aria-hidden="true">
+								<span></span><span></span><span></span><span></span><span></span><span></span>
+								<span></span><span></span><span></span><span></span><span></span><span></span>
+							</div>
+						</div>
+					</div>
+					<div class="composer-actions">
+						<button id="voiceBtn" class="secondary-btn voice-btn" type="button" title="Voice input">🎤</button>
+						<button id="sendBtn" class="send-btn" type="submit">Send</button>
+					</div>
 				</form>
 			</footer>
 		</main>

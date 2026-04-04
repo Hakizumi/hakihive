@@ -3,6 +3,7 @@ package org.hakizumi.hakihive.memory;
 import org.hakizumi.hakihive.dto.event.AssistantWholeReplyEvent;
 import org.hakizumi.hakihive.dto.event.UserInputEvent;
 import org.hakizumi.hakihive.repository.storage.ConversationStore;
+import org.hakizumi.hakihive.service.BaseLLMService;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -13,17 +14,17 @@ import java.util.List;
 
 /**
  * The memory provider class.
- * Responsible for provide conversation memories and do memory summarize for {@link org.hakizumi.hakihive.service.BaseLLMService}.
+ * Responsible for provide conversation memories and do memory summarize for {@link BaseLLMService}.
  * Orchestrated all memory components and produce the final summerized conversation memory.
  * <p>
  * Memory pipeline like:
  * <blockquote>
  * <pre>
- * User input -> All memories -> {@link org.hakizumi.hakihive.service.BaseLLMService} -> Assistant reply
+ * User input -> All memories -> {@link BaseLLMService} -> Assistant reply
  * </pre>
  * </blockquote>
  *
- * @see org.hakizumi.hakihive.service.BaseLLMService
+ * @see BaseLLMService
  * 
  * @since 1.3.0
  * @author Hakizumi

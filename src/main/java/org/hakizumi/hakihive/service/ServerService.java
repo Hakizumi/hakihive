@@ -20,10 +20,6 @@ import java.util.UUID;
 /**
  * End-to-end server pipeline:
  * STT -> LLM(stream) -> websocket.
- * <p>
- * This version keeps sentence-level TTS input segmentation, runs sentence TTS jobs in parallel,
- * and streams chunks to the browser as soon as they are ready. Playback ordering is preserved
- * client-side using {@code (seq, chunkIndex)} plus an explicit sentence-complete signal.
  *
  * @since 1.7.0
  * @author Hakizumi
@@ -59,6 +55,13 @@ public class ServerService {
         startAssistantTurn(conversation, normalized, outstreamService);
     }
 
+    public void onAudioMetadata(@NonNull String cid, int sampleRate) {
+        Conversation conversation = conversationStore.getConversationMemoryOrStorage(cid);
+        if (sampleRate > 0) {
+            conversation.clientSampleRate = sampleRate;
+        }
+    }
+
     public void onUserVoice(@NonNull String cid, @NonNull ByteBuffer bytes, @NonNull OutstreamService outstreamService) {
         Conversation conversation = conversationStore.getConversationMemoryOrStorage(cid);
 
@@ -71,83 +74,102 @@ public class ServerService {
         }
 
         float rms = AudioUtil.rms(samples);
-        boolean speaking = rms >= audioProperties.getVadRmsThreshold();
+        float adaptiveThreshold = updateVadThreshold(conversation, rms);
+        boolean speaking = rms >= adaptiveThreshold;
+        conversation.speakingStreakFrames = speaking ? (conversation.speakingStreakFrames + 1) : 0;
 
-        if (conversation.isAssistantActive() && speaking) {
-            stopConversation(cid, outstreamService);
+        sherpaSttService.acceptWaveform(
+                cid,
+                samples,
+                conversation.clientSampleRate > 0 ? conversation.clientSampleRate : audioProperties.getSampleRate()
+        );
+
+        if (conversation.isAssistantActive()
+                && conversation.speakingStreakFrames >= audioProperties.getBargeInSpeechFrames()) {
+            interruptAssistantForBargeIn(conversation, outstreamService);
         }
 
-        sherpaSttService.acceptWaveform(cid, samples, audioProperties.getSampleRate());
         String partial = sherpaSttService.getText(cid);
 
-        // statemachine
         if (speaking) {
             if (conversation.state != ConversationState.LISTENING) {
-                // start
                 conversation.state = ConversationState.LISTENING;
                 conversation.speechFrames = 0;
                 conversation.silenceFrames = 0;
             }
             conversation.speechFrames++;
             conversation.silenceFrames = 0;
-
-            if (!partial.isBlank() && !partial.equals(conversation.lastPartial)) {
-                conversation.lastPartial = partial;
-                outstreamService.onUserPartialText(new UserAudioRequest(partial, cid));
-            }
+            emitPartialIfChanged(conversation, cid, partial, outstreamService);
+            return;
         }
-        else if (conversation.state == ConversationState.LISTENING) {
-            // stop
-            conversation.silenceFrames++;
 
-            if (!partial.isBlank() && !partial.equals(conversation.lastPartial)) {
-                conversation.lastPartial = partial;
-                outstreamService.onUserPartialText(new UserAudioRequest(partial, cid));
-            }
+        if (conversation.state != ConversationState.LISTENING) {
+            return;
+        }
 
-            boolean endpoint = sherpaSttService.isEndpoint(cid)
-                    || conversation.silenceFrames >= audioProperties.getSilenceTriggerFrame();
+        conversation.silenceFrames++;
+        emitPartialIfChanged(conversation, cid, partial, outstreamService);
 
-            if (endpoint) {
-                finalizeUserSpeech(conversation, outstreamService);
-            }
+        boolean endpoint = sherpaSttService.isEndpoint(cid)
+                || conversation.silenceFrames >= audioProperties.getSilenceTriggerFrame();
+
+        if (endpoint) {
+            finalizeUserSpeech(conversation, outstreamService);
         }
     }
 
     public void stopConversation(@NonNull String cid, @NonNull OutstreamService outstreamService) {
         Conversation conversation = conversationStore.getConversationMemoryOrStorage(cid);
-
-        conversation.cancelAssistant();
-        conversation.state = ConversationState.IDLE;
-        conversation.lastPartial = "";
-        conversation.segmentIndex = 0;
-        conversation.silenceFrames = 0;
-        conversation.speechFrames = 0;
-        conversation.currentUtteranceId = null;
-
+        resetConversationRuntime(conversation);
         outstreamService.stop();
         outstreamService.onStopped(cid);
         sherpaSttService.reset(cid);
     }
 
+    public void closeConversation(@NonNull String cid) {
+        Conversation conversation = conversationStore.getConversationMemoryOrStorage(cid);
+        resetConversationRuntime(conversation);
+        sherpaSttService.closeConversation(cid);
+    }
+
+    private void emitPartialIfChanged(
+            @NonNull Conversation conversation,
+            @NonNull String cid,
+            @NonNull String partial,
+            @NonNull OutstreamService outstreamService
+    ) {
+        if (!partial.isBlank() && !partial.equals(conversation.lastPartial)) {
+            conversation.lastPartial = partial;
+            outstreamService.onUserPartialText(new UserAudioRequest(partial, cid));
+        }
+    }
+
+    private void interruptAssistantForBargeIn(
+            @NonNull Conversation conversation,
+            @NonNull OutstreamService outstreamService
+    ) {
+        if (!conversation.isAssistantActive()) {
+            return;
+        }
+
+        log.debug("Assistant interrupted by barge-in. cid={}", conversation.getCid());
+        conversation.cancelAssistant();
+        outstreamService.stop();
+    }
+
     private void finalizeUserSpeech(@NonNull Conversation conversation, @NonNull OutstreamService outstreamService) {
         String cid = conversation.getCid();
         String finalText = sherpaSttService.getText(cid).trim();
+        long speechFrames = conversation.speechFrames;
 
         sherpaSttService.reset(cid);
-
-        long speechFrames = conversation.speechFrames;
-        conversation.silenceFrames = 0;
-        conversation.speechFrames = 0;
-        conversation.state = ConversationState.IDLE;
+        conversation.resetSpeechRuntime();
 
         if (speechFrames < audioProperties.getSpeechTriggerFrame()) {
-            conversation.lastPartial = "";
             return;
         }
 
         if (finalText.isBlank()) {
-            conversation.lastPartial = "";
             return;
         }
 
@@ -164,14 +186,13 @@ public class ServerService {
         String cid = conversation.getCid();
 
         conversation.cancelAssistant();
-
         conversation.currentUtteranceId = cid + "-" + conversation.turnCounter.incrementAndGet() + "-" + UUID.randomUUID();
         conversation.segmentIndex = 0;
         conversation.lastPartial = "";
         conversation.setAssistantActive(true);
         conversation.state = ConversationState.THINKING;
 
-        conversation.currentAssistantSubscription = llmService.streaming(new ConversationRequest(cid,text))
+        conversation.currentAssistantSubscription = llmService.streaming(new ConversationRequest(cid, text))
                 .doOnNext((event) -> handleAssistantEvent(conversation, outstreamService, event))
                 .doOnError((ex) -> {
                     conversation.currentAssistantSubscription = null;
@@ -196,12 +217,34 @@ public class ServerService {
         outstreamService.onAssistantEvent(event);
 
         String eventName = event.event();
-
-        if (event.data() == null || !event.data().isSuccess()) return;
+        if (event.data() == null || !event.data().isSuccess()) {
+            return;
+        }
 
         String data = event.data().getMessage();
         if ("delta".equals(eventName) && data != null && !data.isEmpty()) {
             conversation.state = ConversationState.REPLYING;
         }
+    }
+
+    private float updateVadThreshold(@NonNull Conversation conversation, float rms) {
+        float alpha = audioProperties.getVadNoiseFloorAlpha();
+        if (conversation.vadNoiseFloor <= 0.0f) {
+            conversation.vadNoiseFloor = rms;
+        }
+        else if (conversation.state != ConversationState.LISTENING || rms < conversation.vadNoiseFloor * 1.2f) {
+            conversation.vadNoiseFloor = conversation.vadNoiseFloor * alpha + rms * (1.0f - alpha);
+        }
+
+        return Math.max(
+                audioProperties.getMinVadRmsThreshold(),
+                Math.max(audioProperties.getVadRmsThreshold(), conversation.vadNoiseFloor * audioProperties.getVadNoiseMultiplier())
+        );
+    }
+
+    private void resetConversationRuntime(@NonNull Conversation conversation) {
+        conversation.cancelAssistant();
+        conversation.resetSpeechRuntime();
+        conversation.currentUtteranceId = null;
     }
 }

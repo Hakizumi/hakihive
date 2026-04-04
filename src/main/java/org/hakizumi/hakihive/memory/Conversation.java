@@ -43,29 +43,60 @@ public class Conversation {
      */
     public @NonNull String lastPartial = "";
 
-    /// Current segment index
+    /**
+     * Current segment index
+     */
     public long segmentIndex = 0;
 
-    /// Silent ( No voice ) time frames
+    /**
+     * Silent ( No voice ) time frames
+     */
     public long silenceFrames = 0;
 
-    /// User saying frames
+    /**
+     *  User saying frames
+     */
     public long speechFrames = 0;
 
-    /// Current utterance id
+    /**
+     * Consecutive speaking frames for barge-in / debounce
+     */
+    public long speakingStreakFrames = 0;
+
+    /**
+     * Sample rate declared by browser for the current audio stream
+     */
+    public int clientSampleRate = 16000;
+
+    /**
+     * Estimated ambient noise floor for adaptive VAD
+     */
+    public float vadNoiseFloor = 0.0f;
+
+    /**
+     * Current utterance id
+     */
     public volatile @Nullable String currentUtteranceId = "";
 
-    /// Current assistant subscription flux
+    /**
+     * Current assistant subscription flux
+     */
     public volatile @Nullable Disposable currentAssistantSubscription = null;
 
-    /// capture -> asr queue (float PCM in [-1, 1])
+    /**
+     * capture -> asr queue (float PCM in [-1, 1])
+     */
     @Getter
     private final BlockingQueue<float[]> audioQ = new ArrayBlockingQueue<>(50);
 
-    /// Assistant is replying or thinking
+    /**
+     * Assistant is replying or thinking
+     */
     private final AtomicBoolean assistantActive = new AtomicBoolean(false);
 
-    /// Turns
+    /**
+     * Turns
+     */
     public final AtomicLong turnCounter = new AtomicLong(0);
 
     public boolean isAssistantActive() {
@@ -103,7 +134,7 @@ public class Conversation {
      * @since 1.3.0
      */
     public void coverSystemPrompt(@NonNull SystemMessage systemMessage) {
-        if (messages.getFirst().getMessageType() == MessageType.SYSTEM) {
+        if (!messages.isEmpty() && messages.getFirst().getMessageType() == MessageType.SYSTEM) {
             messages.set(0, systemMessage);
         }
         else {
@@ -142,6 +173,18 @@ public class Conversation {
         currentAssistantSubscription = null;
         assistantActive.set(false);
         currentUtteranceId = null;
+    }
+
+    /**
+     * Reset runtime fields related to one streaming speech segment.
+     */
+    public void resetSpeechRuntime() {
+        lastPartial = "";
+        segmentIndex = 0;
+        silenceFrames = 0;
+        speechFrames = 0;
+        speakingStreakFrames = 0;
+        state = ConversationState.IDLE;
     }
 
     /**
