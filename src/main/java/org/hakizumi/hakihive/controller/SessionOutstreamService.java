@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hakizumi.hakihive.dto.ConversationResponse;
 import org.hakizumi.hakihive.dto.UserAudioRequest;
 import org.hakizumi.hakihive.service.OutstreamService;
+import org.hakizumi.hakihive.utils.StringUtils;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.socket.TextMessage;
@@ -81,11 +82,11 @@ public final class SessionOutstreamService implements OutstreamService {
 
         String data = event.data().getMessage();
 
-        if ("token".equals(eventName)) {
+        if ("delta".equals(eventName)) {
             sendJson(Map.of(
                     "type", "assistant_text",
                     "cid", cid,
-                    "text", data == null ? "" : data
+                    "text", StringUtils.nullToEmpty(data)
             ));
             return;
         }
