@@ -1,18 +1,27 @@
-type ConversationRequest = {
+type WsRequestType = "chat" | "stop" | "ping";
+
+type WsRequest = {
+    type: WsRequestType;
     cid: string;
-    message: string;
+    text: string;
 };
 
-type ConversationResponse = {
-    success: boolean;
-    error?: string | null;
-    errorCode?: number | null;
-    message?: string | null;
-};
+type WsResponseType =
+    | "connected"
+    | "stopped"
+    | "pong"
+    | "error"
+    | "assistant_start"
+    | "assistant_text"
+    | "assistant_finish"
+    | "stt_partial"
+    | "stt_final"
+    | "client_stop";
 
-type SSEEvent = {
-    event: string;
-    data: string;
+type WsResponse = {
+    type: WsResponseType;
+    cid: string;
+    text?: string;
 };
 
 class ChatApp {
@@ -23,11 +32,15 @@ class ChatApp {
     private readonly newChatBtnEl = this.mustGet<HTMLButtonElement>("newChatBtn");
     private readonly stopBtnEl = this.mustGet<HTMLButtonElement>("stopBtn");
     private readonly cidTextEl = this.mustGet<HTMLDivElement>("cidText");
-    private readonly streamingSwitchEl = this.mustGet<HTMLInputElement>("streamingSwitch");
 
     private cid: string = this.loadOrCreateCid();
-    private abortController: AbortController | null = null;
+    private ws: WebSocket | null = null;
     private isSending = false;
+
+    private assistantNode: HTMLDivElement | null = null;
+    private assistantText = "";
+
+    private sttNode: HTMLDivElement | null = null;
 
     constructor() {
         this.cidTextEl.textContent = this.cid;
@@ -37,17 +50,33 @@ class ChatApp {
             void this.handleSubmit();
         });
 
-        this.newChatBtnEl.addEventListener("click", () => {
+        this.newChatBtnEl.addEventListener("click", async () => {
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.close(1000, "switch conversation");
+            }
+
             this.cid = this.createCid();
             localStorage.setItem("hakihive-cid", this.cid);
             this.cidTextEl.textContent = this.cid;
             this.messagesEl.innerHTML = "";
+
+            this.assistantNode = null;
+            this.assistantText = "";
+            this.sttNode = null;
+
             this.addSystemMessage("Created new conversation.");
+
+            try {
+                await this.connectWebSocket();
+            } catch (error) {
+                this.addSystemMessage(`WebSocket connection failed: ${this.formatError(error)}`);
+            }
+
             this.inputEl.focus();
         });
 
         this.stopBtnEl.addEventListener("click", () => {
-            this.abortCurrentRequest();
+            this.sendStop();
         });
 
         this.inputEl.addEventListener("keydown", (event) => {
@@ -60,6 +89,7 @@ class ChatApp {
         this.autoResizeInput();
         this.inputEl.addEventListener("input", () => this.autoResizeInput());
 
+        void this.connectWebSocket();
         this.addSystemMessage("Welcome to use Hakihive.💬");
     }
 
@@ -69,168 +99,219 @@ class ChatApp {
             return;
         }
 
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            this.addSystemMessage("WebSocket not connected, reconnecting...");
+            try {
+                await this.connectWebSocket();
+            } catch (error) {
+                this.addSystemMessage(`WebSocket connection failed: ${this.formatError(error)}`);
+                return;
+            }
+        }
+
         this.addMessage("user", text);
         this.inputEl.value = "";
         this.autoResizeInput();
 
-        const streaming = this.streamingSwitchEl.checked;
-        if (streaming) {
-            await this.sendStreaming(text);
-        } else {
-            await this.sendNonStreaming(text);
-        }
-    }
+        this.assistantNode = null;
+        this.assistantText = "";
+        this.sttNode = null;
 
-    private async sendNonStreaming(message: string): Promise<void> {
         this.setSending(true);
+
+        this.sendWsMessage({
+            type: "chat",
+            cid: this.cid,
+            text
+        });
+    }
+
+    private connectWebSocket(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            try {
+                if (this.ws) {
+                    if (
+                        this.ws.readyState === WebSocket.OPEN ||
+                        this.ws.readyState === WebSocket.CONNECTING
+                    ) {
+                        resolve();
+                        return;
+                    }
+                    this.ws = null;
+                }
+
+                const ws = new WebSocket(
+                    `ws://localhost:11622/backend/websocket/chat?cid=${encodeURIComponent(this.cid)}`
+                );
+
+                this.ws = ws;
+
+                ws.onopen = () => {
+                    console.log("[ws] open");
+                    this.addSystemMessage("WebSocket connected.");
+                    resolve();
+                };
+
+                ws.onmessage = (event) => {
+                    console.log("[ws] message:", event.data);
+                    this.handleWsMessage(event.data);
+                };
+
+                ws.onerror = (event) => {
+                    console.error("[ws] error:", event);
+                };
+
+                ws.onclose = (event) => {
+                    console.warn("[ws] close:", {
+                        code: event.code,
+                        reason: event.reason,
+                        wasClean: event.wasClean
+                    });
+
+                    const wasSending = this.isSending;
+                    this.ws = null;
+
+                    if (wasSending) {
+                        this.finishAssistant("[Connection closed]");
+                        this.setSending(false);
+                    }
+
+                    this.addSystemMessage(
+                        `WebSocket disconnected. code=${event.code}, reason=${event.reason || "(empty)"}`
+                    );
+                };
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    private handleWsMessage(raw: string): void {
+        let data: WsResponse;
+
         try {
-            const payload: ConversationRequest = {
-                cid: this.cid,
-                message
-            };
-
-            const response = await fetch("/backend/chat/nonstreaming", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const json = (await response.json()) as ConversationResponse;
-
-            if (!json.success) {
-                throw new Error(json.error ?? "Unknown server error");
-            }
-
-            this.addMessage("assistant", json.message ?? "");
+            data = JSON.parse(raw) as WsResponse;
         } catch (error) {
-            this.addSystemMessage(`Request failed：${this.formatError(error)}`);
-        } finally {
-            this.setSending(false);
+            this.addSystemMessage(`Invalid WebSocket message: ${this.formatError(error)}`);
+            return;
+        }
+
+        // Only handle the current session
+        if (data.cid && data.cid !== this.cid) {
+            return;
+        }
+
+        switch (data.type) {
+            case "connected":
+                this.addSystemMessage(`Session connected: ${data.cid}`);
+                break;
+
+            case "pong":
+                this.addSystemMessage("Pong received.");
+                break;
+
+            case "stopped":
+                this.finishAssistant("\n\n[Generation stopped]");
+                this.setSending(false);
+                break;
+
+            case "client_stop":
+                this.finishAssistant("\n\n[Client stopped]");
+                this.setSending(false);
+                break;
+
+            case "error":
+                this.finishAssistant(data.text ? `\n\n[Error] ${data.text}` : "\n\n[Error]");
+                this.addSystemMessage(`Server error: ${data.text ?? "Unknown error"}`);
+                this.setSending(false);
+                break;
+
+            case "assistant_start":
+                this.assistantText = "";
+                this.assistantNode = this.addMessage("assistant", "", true);
+                break;
+
+            case "assistant_text":
+                if (!this.assistantNode) {
+                    this.assistantText = "";
+                    this.assistantNode = this.addMessage("assistant", "", true);
+                }
+
+                this.assistantText += data.text ?? "";
+                this.assistantNode.textContent = this.assistantText;
+                this.assistantNode.classList.add("cursor");
+                this.scrollToBottom();
+                break;
+
+            case "assistant_finish":
+                this.finishAssistant();
+                this.setSending(false);
+                break;
+
+            case "stt_partial":
+                this.showOrUpdateStt(data.text ?? "", true);
+                break;
+
+            case "stt_final":
+                this.showOrUpdateStt(data.text ?? "", false);
+                break;
+
+            default:
+                this.addSystemMessage(`Unhandled message type: ${(data as { type?: string }).type ?? "unknown"}`);
+                break;
         }
     }
 
-    private async sendStreaming(message: string): Promise<void> {
-        this.setSending(true);
-        this.abortController = new AbortController();
-
-        const assistantNode = this.addMessage("assistant", "", true);
-
-        try {
-            const payload: ConversationRequest = {
-                cid: this.cid,
-                message
-            };
-
-            const response = await fetch("/backend/chat/streaming", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Accept": "text/event-stream"
-                },
-                body: JSON.stringify(payload),
-                signal: this.abortController.signal
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            if (!response.body) {
-                throw new Error("Response body is empty");
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder("utf-8");
-            let buffer = "";
-            let fullText = "";
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) {
-                    break;
-                }
-
-                buffer += decoder.decode(value, { stream: true });
-                const parsed = this.extractSSEEvents(buffer);
-                buffer = parsed.rest;
-
-                for (const evt of parsed.events) {
-                    if (!evt.data) {
-                        continue;
-                    }
-
-                    const json = JSON.parse(evt.data) as ConversationResponse;
-
-                    if (evt.event === "error" || !json.success) {
-                        throw new Error(json.error ?? "Server returned an error");
-                    }
-
-                    if (evt.event === "delta" && json.message) {
-                        fullText += json.message;
-                        assistantNode.textContent = fullText;
-                        assistantNode.classList.add("cursor");
-                        this.scrollToBottom();
-                    }
-                }
-            }
-
-            assistantNode.classList.remove("cursor");
-
-            if (!fullText) {
-                assistantNode.textContent = "(empty response)";
-            }
-        } catch (error) {
-            if ((error as DOMException)?.name === "AbortError") {
-                assistantNode.classList.remove("cursor");
-                assistantNode.textContent += "\n\n[Generation stopped]";
-            } else {
-                assistantNode.remove();
-                this.addSystemMessage(`Request streaming failed：${this.formatError(error)}`);
-            }
-        } finally {
-            this.abortController = null;
-            this.setSending(false);
+    private showOrUpdateStt(text: string, partial: boolean): void {
+        if (!this.sttNode) {
+            this.sttNode = this.addMessage("assistant", "", false);
+            this.sttNode.parentElement?.classList.add("stt");
         }
+
+        this.sttNode.textContent = partial ? `[STT partial] ${text}` : `[STT final] ${text}`;
+        this.scrollToBottom();
     }
 
-    private extractSSEEvents(raw: string): { events: SSEEvent[]; rest: string } {
-        const normalized = raw.replace(/\r\n/g, "\n");
-        const chunks = normalized.split("\n\n");
-
-        if (chunks.length === 1) {
-            return { events: [], rest: raw };
+    private sendStop(): void {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            return;
         }
 
-        const complete = chunks.slice(0, -1);
-        const rest = chunks[chunks.length - 1] ?? "";
-        const events: SSEEvent[] = [];
+        this.sendWsMessage({
+            type: "stop",
+            cid: this.cid,
+            text: "ignored"
+        });
+    }
 
-        for (const chunk of complete) {
-            const lines = chunk.split("\n");
-            let event = "message";
-            const dataLines: string[] = [];
-
-            for (const line of lines) {
-                if (line.startsWith("event:")) {
-                    event = line.slice(6).trim();
-                } else if (line.startsWith("data:")) {
-                    dataLines.push(line.slice(5).trim());
-                }
-            }
-
-            events.push({
-                event,
-                data: dataLines.join("\n")
-            });
+    private sendPing(): void {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            return;
         }
 
-        return { events, rest };
+        this.sendWsMessage({
+            type: "ping",
+            cid: this.cid,
+            text: "ignored"
+        });
+    }
+
+    private sendWsMessage(payload: WsRequest): void {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            throw new Error("WebSocket is not open");
+        }
+        this.ws.send(JSON.stringify(payload));
+    }
+
+    private finishAssistant(suffix = ""): void {
+        if (!this.assistantNode) {
+            return;
+        }
+
+        const finalText = `${this.assistantText}${suffix}`;
+        this.assistantNode.textContent = finalText || "(empty response)";
+        this.assistantNode.classList.remove("cursor");
+        this.scrollToBottom();
     }
 
     private addMessage(role: "user" | "assistant", text: string, withCursor = false): HTMLDivElement {
@@ -269,12 +350,6 @@ class ChatApp {
         this.sendBtnEl.disabled = sending;
         this.stopBtnEl.disabled = !sending;
         this.inputEl.disabled = sending;
-    }
-
-    private abortCurrentRequest(): void {
-        if (this.abortController) {
-            this.abortController.abort();
-        }
     }
 
     private scrollToBottom(): void {
