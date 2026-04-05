@@ -11,8 +11,6 @@ import reactor.core.Disposable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -54,7 +52,7 @@ public class Conversation {
     public long silenceFrames = 0;
 
     /**
-     *  User saying frames
+     * User saying frames
      */
     public long speechFrames = 0;
 
@@ -82,12 +80,6 @@ public class Conversation {
      * Current assistant subscription flux
      */
     public volatile @Nullable Disposable currentAssistantSubscription = null;
-
-    /**
-     * capture -> asr queue (float PCM in [-1, 1])
-     */
-    @Getter
-    private final BlockingQueue<float[]> audioQ = new ArrayBlockingQueue<>(50);
 
     /**
      * Assistant is replying or thinking
@@ -143,18 +135,9 @@ public class Conversation {
     }
 
     /**
-     * Set the {@code system prompt} of the conversation.
-     * If the conversation has not set system prompt,
-     * this function will push the {@code systemMessage} to the front of the conversation memory list.
-     * Easy usage for {@link Conversation#coverSystemPrompt(SystemMessage)}
+     * Easy usage for {@link Conversation#coverSystemPrompt(SystemMessage)}.
      *
      * @param message The system message to cover or set.
-     *
-     * @see Conversation#coverSystemPrompt(SystemMessage)
-     *
-     * @throws NullPointerException If {@code message} is null.
-     *
-     * @since 1.3.0
      */
     public void coverSystemPrompt(@NonNull String message) {
         coverSystemPrompt(new SystemMessage(message));
@@ -164,10 +147,9 @@ public class Conversation {
      * Cancel assistant response & audio for barge-in.
      */
     public void cancelAssistant() {
-        // cancel llm stream
-        Disposable d = currentAssistantSubscription;
-        if (d != null && !d.isDisposed()) {
-            d.dispose();
+        Disposable subscription = currentAssistantSubscription;
+        if (subscription != null && !subscription.isDisposed()) {
+            subscription.dispose();
         }
 
         currentAssistantSubscription = null;

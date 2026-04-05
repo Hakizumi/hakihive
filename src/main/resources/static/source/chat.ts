@@ -24,6 +24,22 @@ type WsResponse = {
     text?: string;
 };
 
+type ResampleState = {
+    inputSampleRate: number;
+    targetSampleRate: number;
+    ratio: number;
+    sourceOffset: number;
+    tail: Float32Array;
+    filterRadius: number;
+    cutoff: number;
+};
+
+type WebkitWindow = Window & {
+    webkitAudioContext?: typeof AudioContext;
+};
+
+const AUDIO_WORKLET_MODULE_PATH = "/dist/audio/audio-capture-worklet.js";
+
 class ChatApp {
     private readonly messagesEl = this.mustGet<HTMLDivElement>("messages");
     private readonly formEl = this.mustGet<HTMLFormElement>("chatForm");
@@ -46,17 +62,15 @@ class ChatApp {
 
     private liveUserNode: HTMLDivElement | null = null;
     private liveUserText = "";
+    private liveUserBubbleCommitted = false;
 
     private mediaStream: MediaStream | null = null;
     private audioContext: AudioContext | null = null;
     private mediaSourceNode: MediaStreamAudioSourceNode | null = null;
-    private scriptProcessorNode: ScriptProcessorNode | null = null;
+    private audioWorkletNode: AudioWorkletNode | null = null;
     private monitorGainNode: GainNode | null = null;
-    private resampleState: {
-        ratio: number;
-        sourceOffset: number;
-        tail: Float32Array;
-    } | null = null;
+
+    private resampleState: ResampleState | null = null;
 
     constructor() {
         this.cidTextEl.textContent = this.cid;
@@ -77,8 +91,7 @@ class ChatApp {
 
             this.assistantNode = null;
             this.assistantText = "";
-            this.liveUserNode = null;
-            this.liveUserText = "";
+            this.resetLiveUserBubbleState();
 
             this.addSystemMessage("Created new conversation.");
 
@@ -134,8 +147,7 @@ class ChatApp {
 
         this.assistantNode = null;
         this.assistantText = "";
-        this.liveUserNode = null;
-        this.liveUserText = "";
+        this.resetLiveUserBubbleState();
 
         this.setSending(true);
 
@@ -169,53 +181,65 @@ class ChatApp {
                 }
             });
 
-            const AudioContextCtor = window.AudioContext || (window as typeof window & {
-                webkitAudioContext?: typeof AudioContext;
-            }).webkitAudioContext;
-
+            const AudioContextCtor = window.AudioContext || (window as WebkitWindow).webkitAudioContext;
             if (!AudioContextCtor) {
                 throw new Error("AudioContext is not supported in this browser.");
             }
 
-            const audioContext = new AudioContextCtor();
+            const audioContext = new AudioContextCtor({
+                latencyHint: "interactive"
+            });
             await audioContext.resume();
+            await audioContext.audioWorklet.addModule(AUDIO_WORKLET_MODULE_PATH);
 
             const sourceNode = audioContext.createMediaStreamSource(stream);
-            const processorNode = audioContext.createScriptProcessor(2048, 1, 1);
+            const workletNode = new AudioWorkletNode(audioContext, "pcm-capture-processor", {
+                numberOfInputs: 1,
+                numberOfOutputs: 1,
+                channelCount: 1
+            });
             const gainNode = audioContext.createGain();
             gainNode.gain.value = 0;
 
             this.resetResampler(audioContext.sampleRate, this.sttSampleRate);
 
-            this.sendWsMessage({
-                type: "audio_meta",
-                text: "",
-                sampleRate: this.sttSampleRate
-            });
-
-            processorNode.onaudioprocess = (event: AudioProcessingEvent) => {
+            workletNode.port.onmessage = (event: MessageEvent<Float32Array | number[]>) => {
                 if (!this.isRecording || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
                     return;
                 }
 
-                const channelData = event.inputBuffer.getChannelData(0);
+                const payload = event.data;
+                const channelData = payload instanceof Float32Array
+                    ? payload
+                    : new Float32Array(Array.isArray(payload) ? payload : []);
+
                 const resampled = this.resampleAudioChunk(channelData);
+                if (resampled.length === 0) {
+                    return;
+                }
+
                 const pcm16Buffer = this.convertFloat32ToPcm16Le(resampled);
                 if (pcm16Buffer.byteLength > 0) {
                     this.ws.send(pcm16Buffer);
                 }
             };
 
-            sourceNode.connect(processorNode);
-            processorNode.connect(gainNode);
+            sourceNode.connect(workletNode);
+            workletNode.connect(gainNode);
             gainNode.connect(audioContext.destination);
 
             this.mediaStream = stream;
             this.audioContext = audioContext;
             this.mediaSourceNode = sourceNode;
-            this.scriptProcessorNode = processorNode;
+            this.audioWorkletNode = workletNode;
             this.monitorGainNode = gainNode;
             this.isRecording = true;
+
+            this.sendWsMessage({
+                type: "audio_meta",
+                text: "",
+                sampleRate: this.sttSampleRate
+            });
 
             this.formEl.classList.add("voice-mode");
             this.voiceBtnEl.classList.add("recording");
@@ -227,8 +251,7 @@ class ChatApp {
 
             this.assistantNode = null;
             this.assistantText = "";
-            this.liveUserNode = null;
-            this.liveUserText = "";
+            this.resetLiveUserBubbleState();
         } catch (error) {
             await this.stopVoiceRecording();
             this.addSystemMessage(`Voice start failed: ${this.formatError(error)}`);
@@ -239,10 +262,10 @@ class ChatApp {
         this.isRecording = false;
         this.resampleState = null;
 
-        if (this.scriptProcessorNode) {
-            this.scriptProcessorNode.disconnect();
-            this.scriptProcessorNode.onaudioprocess = null;
-            this.scriptProcessorNode = null;
+        if (this.audioWorkletNode) {
+            this.audioWorkletNode.port.onmessage = null;
+            this.audioWorkletNode.disconnect();
+            this.audioWorkletNode = null;
         }
 
         if (this.monitorGainNode) {
@@ -295,10 +318,7 @@ class ChatApp {
         return new Promise((resolve, reject) => {
             try {
                 if (this.ws) {
-                    if (
-                        this.ws.readyState === WebSocket.OPEN ||
-                        this.ws.readyState === WebSocket.CONNECTING
-                    ) {
+                    if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
                         resolve();
                         return;
                     }
@@ -379,7 +399,7 @@ class ChatApp {
 
             case "stopped":
                 this.finishAssistant("\n\n[Generation stopped]");
-                this.finalizeLiveUserBubble();
+                this.finalizeLiveUserBubble(false);
                 this.setSending(false);
                 if (this.isRecording) {
                     void this.stopVoiceRecording();
@@ -393,7 +413,7 @@ class ChatApp {
 
             case "error":
                 this.finishAssistant(data.text ? `\n\n[Error] ${data.text}` : "\n\n[Error]");
-                this.finalizeLiveUserBubble();
+                this.finalizeLiveUserBubble(false);
                 this.addSystemMessage(`Server error: ${data.text ?? "Unknown error"}`);
                 this.setSending(false);
                 break;
@@ -435,40 +455,48 @@ class ChatApp {
     }
 
     private showOrUpdateLiveUserBubble(text: string, partial: boolean): void {
-        if (!this.liveUserNode) {
+        const shouldCreateNewBubble = !this.liveUserNode || (partial && this.liveUserBubbleCommitted);
+
+        if (shouldCreateNewBubble) {
             this.liveUserNode = this.addMessage("user", "", partial);
-            const wrapper = this.liveUserNode.parentElement;
-            if (wrapper) {
-                wrapper.classList.add("live");
-                const meta = wrapper.querySelector<HTMLElement>(".meta");
-                if (meta) {
-                    meta.textContent = partial ? "You · Listening" : "You";
-                }
-            }
+            this.liveUserText = "";
+            this.liveUserBubbleCommitted = false;
+        }
+
+        const liveUserNode = this.liveUserNode;
+        if (!liveUserNode) {
+            return;
         }
 
         this.liveUserText = text;
-        this.liveUserNode.textContent = text || (partial ? "Listening..." : "");
+        liveUserNode.textContent = text || (partial ? "Listening..." : "");
 
-        const wrapper = this.liveUserNode.parentElement;
+        const wrapper = liveUserNode.parentElement;
         const meta = wrapper?.querySelector<HTMLElement>(".meta");
         if (meta) {
             meta.textContent = partial ? "You · Listening" : "You";
         }
 
         if (partial) {
-            this.liveUserNode.classList.add("cursor");
+            liveUserNode.classList.add("cursor");
             wrapper?.classList.add("live");
+            this.liveUserBubbleCommitted = false;
         } else {
-            this.liveUserNode.classList.remove("cursor");
+            liveUserNode.classList.remove("cursor");
             wrapper?.classList.remove("live");
+            this.liveUserBubbleCommitted = true;
+            this.liveUserNode = null;
+            this.liveUserText = "";
         }
 
         this.scrollToBottom();
     }
 
-    private finalizeLiveUserBubble(): void {
+    private finalizeLiveUserBubble(resetText = false): void {
         if (!this.liveUserNode) {
+            if (resetText) {
+                this.resetLiveUserBubbleState();
+            }
             return;
         }
 
@@ -479,6 +507,16 @@ class ChatApp {
         if (meta) {
             meta.textContent = "You";
         }
+
+        if (resetText) {
+            this.resetLiveUserBubbleState();
+        }
+    }
+
+    private resetLiveUserBubbleState(): void {
+        this.liveUserNode = null;
+        this.liveUserText = "";
+        this.liveUserBubbleCommitted = false;
     }
 
     private sendStop(): void {
@@ -581,9 +619,13 @@ class ChatApp {
 
     private resetResampler(inputSampleRate: number, targetSampleRate: number): void {
         this.resampleState = {
+            inputSampleRate,
+            targetSampleRate,
             ratio: inputSampleRate / targetSampleRate,
             sourceOffset: 0,
-            tail: new Float32Array(0)
+            tail: new Float32Array(0),
+            filterRadius: 16,
+            cutoff: Math.min(1, targetSampleRate / inputSampleRate) * 0.92
         };
     }
 
@@ -601,23 +643,44 @@ class ChatApp {
         merged.set(state.tail, 0);
         merged.set(input, state.tail.length);
 
-        const ratio = state.ratio;
         const output: number[] = [];
+        const filterRadius = state.filterRadius;
+        const cutoff = state.cutoff;
         let sourceOffset = state.sourceOffset;
 
-        while (sourceOffset + 1 < merged.length) {
-            const leftIndex = Math.floor(sourceOffset);
-            const rightIndex = leftIndex + 1;
-            const weight = sourceOffset - leftIndex;
-            const left = merged[leftIndex] ?? 0;
-            const right = merged[rightIndex] ?? left;
-            output.push(left + (right - left) * weight);
-            sourceOffset += ratio;
+        while (sourceOffset + filterRadius < merged.length) {
+            const center = sourceOffset;
+            const leftBound = Math.floor(center - filterRadius + 1);
+            const rightBound = Math.ceil(center + filterRadius);
+            let sample = 0;
+            let weightSum = 0;
+
+            for (let i = leftBound; i <= rightBound; i += 1) {
+                if (i < 0 || i >= merged.length) {
+                    continue;
+                }
+
+                const distance = center - i;
+                const window = Math.abs(distance) > filterRadius
+                    ? 0
+                    : 0.54 + 0.46 * Math.cos((Math.PI * distance) / filterRadius);
+                const scaledDistance = distance * cutoff;
+                const sinc = Math.abs(scaledDistance) < 1e-8
+                    ? 1
+                    : Math.sin(Math.PI * scaledDistance) / (Math.PI * scaledDistance);
+                const weight = cutoff * sinc * window;
+
+                sample += (merged[i] ?? 0) * weight;
+                weightSum += weight;
+            }
+
+            output.push(weightSum !== 0 ? sample / weightSum : 0);
+            sourceOffset += state.ratio;
         }
 
-        const consumed = Math.min(Math.floor(sourceOffset), merged.length);
-        state.tail = merged.slice(Math.max(0, consumed - 1));
-        state.sourceOffset = sourceOffset - Math.max(0, consumed - 1);
+        const keepFrom = Math.max(0, Math.floor(sourceOffset) - filterRadius);
+        state.tail = merged.slice(keepFrom);
+        state.sourceOffset = sourceOffset - keepFrom;
 
         return new Float32Array(output);
     }

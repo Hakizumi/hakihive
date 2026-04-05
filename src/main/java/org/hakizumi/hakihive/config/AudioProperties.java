@@ -39,7 +39,7 @@ public class AudioProperties {
     private long bargeInSpeechFrames = 2;
 
     /**
-     * Max queued tasks per cid worker.
+     * Max buffered audio frames per cid worker.
      */
     private int maxConversationTasks = 512;
 

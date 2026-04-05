@@ -16,15 +16,16 @@ import reactor.core.publisher.Flux;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * End-to-end server pipeline:
- * websocket receive -> per-cid serial queue -> STT(endpoint) -> LLM(stream) -> websocket.
+ * websocket receive -> per-cid audio/control queues -> per-cid serial worker -> STT(endpoint) -> LLM(stream) -> websocket.
  *
  * @since 1.7.0
  * @author Hakizumi
@@ -32,14 +33,20 @@ import java.util.concurrent.TimeUnit;
 @Service
 @Slf4j
 public class ServerService {
-    private static final int DEFAULT_MAX_CONVERSATION_TASKS = 512;
+    private static final int DEFAULT_MAX_AUDIO_QUEUE_FRAMES = 128;
     private static final int DEFAULT_MAX_AUDIO_BYTES_PER_FRAME = 64 * 1024;
+    private static final long WORKER_IDLE_POLL_MS = 40L;
+    private static final int MAX_CONTROL_TASKS_PER_TICK = 32;
 
     private final ConversationStore conversationStore;
     private final LLMService llmService;
     private final SherpaOnnxSttService sherpaSttService;
     private final AudioProperties audioProperties;
-    private final ConcurrentHashMap<String, ThreadPoolExecutor> conversationWorkers = new ConcurrentHashMap<>();
+
+    private final ConcurrentHashMap<String, BlockingQueue<AudioFrame>> conversationAudioQueues = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, BlockingQueue<Runnable>> conversationControlQueues = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Thread> conversationWorkers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, AtomicBoolean> closingFlags = new ConcurrentHashMap<>();
 
     public ServerService(
             ConversationStore conversationStore,
@@ -54,34 +61,48 @@ public class ServerService {
     }
 
     public void onUserText(@NonNull String cid, @NonNull String text, @NonNull OutstreamService outstreamService) {
-        dispatch(cid, outstreamService, () -> handleUserText(cid, text, outstreamService));
+        enqueueControl(cid, () -> handleUserText(cid, text, outstreamService));
     }
 
     public void onAudioMetadata(@NonNull String cid, int sampleRate) {
-        dispatch(cid, null, () -> handleAudioMetadata(cid, sampleRate));
+        enqueueControl(cid, () -> handleAudioMetadata(cid, sampleRate));
     }
 
     public void onUserVoice(@NonNull String cid, @NonNull ByteBuffer bytes, @NonNull OutstreamService outstreamService) {
         byte[] raw = new byte[bytes.remaining()];
         bytes.get(raw);
-        dispatch(cid, outstreamService, () -> handleUserVoice(cid, raw, outstreamService));
+
+        if (!isValidPcmFrame(raw, cid, outstreamService)) {
+            return;
+        }
+
+        ensureConversationWorkerStarted(cid);
+        BlockingQueue<AudioFrame> audioQueue = getAudioQueue(cid);
+        AudioFrame frame = new AudioFrame(raw, outstreamService);
+
+        if (audioQueue.offer(frame)) {
+            return;
+        }
+
+        AudioFrame dropped = audioQueue.poll();
+        boolean enqueued = audioQueue.offer(frame);
+        if (!enqueued) {
+            log.warn("Dropping latest audio frame because queue is still full. cid={}, queueSize={}", cid, audioQueue.size());
+            return;
+        }
+
+        if (dropped != null) {
+            log.debug("Dropped oldest buffered audio frame to keep realtime STT responsive. cid={}", cid);
+        }
     }
 
     public void stopConversation(@NonNull String cid, @NonNull OutstreamService outstreamService) {
-        dispatch(cid, outstreamService, () -> handleStopConversation(cid, outstreamService));
+        enqueueControl(cid, () -> handleStopConversation(cid, outstreamService));
     }
 
     public void closeConversation(@NonNull String cid) {
-        dispatch(cid, null, () -> {
-            Conversation conversation = conversationStore.getConversationMemoryOrStorage(cid);
-            resetConversationRuntime(conversation);
-            sherpaSttService.closeConversation(cid);
-
-            ThreadPoolExecutor worker = conversationWorkers.remove(cid);
-            if (worker != null) {
-                worker.shutdown();
-            }
-        });
+        ensureConversationWorkerStarted(cid);
+        enqueueControl(cid, () -> handleCloseConversation(cid));
     }
 
     private void handleUserText(@NonNull String cid, @NonNull String text, @NonNull OutstreamService outstreamService) {
@@ -91,6 +112,7 @@ public class ServerService {
             return;
         }
 
+        clearBufferedAudio(cid);
         Conversation conversation = conversationStore.getConversationMemoryOrStorage(cid);
         startAssistantTurn(conversation, normalized, outstreamService);
     }
@@ -104,13 +126,12 @@ public class ServerService {
         conversation.clientSampleRate = sampleRate;
     }
 
-    private void handleUserVoice(@NonNull String cid, byte[] raw, @NonNull OutstreamService outstreamService) {
-        Conversation conversation = conversationStore.getConversationMemoryOrStorage(cid);
-
-        if (!isValidPcmFrame(raw, cid, outstreamService)) {
-            return;
-        }
-
+    private void handleUserVoice(
+            @NonNull Conversation conversation,
+            @NonNull String cid,
+            byte @NonNull [] raw,
+            @NonNull OutstreamService outstreamService
+    ) {
         float[] samples = AudioUtil.pcm16leToFloat(raw);
         if (samples.length == 0) {
             return;
@@ -167,11 +188,24 @@ public class ServerService {
     }
 
     private void handleStopConversation(@NonNull String cid, @NonNull OutstreamService outstreamService) {
+        clearBufferedAudio(cid);
+
         Conversation conversation = conversationStore.getConversationMemoryOrStorage(cid);
         resetConversationRuntime(conversation);
         outstreamService.stop();
         outstreamService.onStopped(cid);
         sherpaSttService.reset(cid);
+    }
+
+    private void handleCloseConversation(@NonNull String cid) {
+        AtomicBoolean closing = closingFlags.computeIfAbsent(cid, (key) -> new AtomicBoolean(false));
+        closing.set(true);
+
+        clearBufferedAudio(cid);
+
+        Conversation conversation = conversationStore.getConversationMemoryOrStorage(cid);
+        resetConversationRuntime(conversation);
+        sherpaSttService.closeConversation(cid);
     }
 
     private boolean isValidPcmFrame(byte @NonNull [] raw, @NonNull String cid, @NonNull OutstreamService outstreamService) {
@@ -228,6 +262,7 @@ public class ServerService {
 
         sherpaSttService.reset(cid);
         conversation.resetSpeechRuntime();
+        clearBufferedAudio(cid);
         startAssistantTurn(conversation, finalText, outstreamService);
     }
 
@@ -238,6 +273,7 @@ public class ServerService {
     ) {
         String cid = conversation.getCid();
 
+        clearBufferedAudio(cid);
         conversation.cancelAssistant();
         conversation.currentUtteranceId = cid + "-" + conversation.turnCounter.incrementAndGet() + "-" + UUID.randomUUID();
         conversation.segmentIndex = 0;
@@ -247,13 +283,13 @@ public class ServerService {
 
         conversation.currentAssistantSubscription = llmService.streaming(new ConversationRequest(cid, text))
                 .doOnNext((event) -> handleAssistantEvent(conversation, outstreamService, event))
-                .doOnError((ex) -> dispatch(cid, outstreamService, () -> {
+                .doOnError((ex) -> enqueueControl(cid, () -> {
                     conversation.currentAssistantSubscription = null;
                     conversation.setAssistantActive(false);
                     conversation.state = ConversationState.IDLE;
                     outstreamService.onError(cid, ex.getMessage() == null ? "LLM stream failed." : ex.getMessage());
                 }))
-                .doOnComplete(() -> dispatch(cid, null, () -> {
+                .doOnComplete(() -> enqueueControl(cid, () -> {
                     conversation.currentAssistantSubscription = null;
                     conversation.setAssistantActive(false);
                     conversation.state = ConversationState.IDLE;
@@ -286,36 +322,98 @@ public class ServerService {
         conversation.currentUtteranceId = null;
     }
 
-    private void dispatch(@NonNull String cid, OutstreamService outstreamService, @NonNull Runnable task) {
-        ThreadPoolExecutor worker = conversationWorkers.computeIfAbsent(cid, this::newConversationWorker);
+    private void enqueueControl(@NonNull String cid, @NonNull Runnable task) {
+        ensureConversationWorkerStarted(cid);
+        getControlQueue(cid).offer(task);
+    }
+
+    private void ensureConversationWorkerStarted(@NonNull String cid) {
+        conversationWorkers.computeIfAbsent(cid, (key) -> {
+            conversationAudioQueues.computeIfAbsent(key, (ignored) -> new ArrayBlockingQueue<>(resolveAudioQueueCapacity()));
+            conversationControlQueues.computeIfAbsent(key, (ignored) -> new LinkedBlockingQueue<>());
+            closingFlags.computeIfAbsent(key, (ignored) -> new AtomicBoolean(false));
+
+            Thread thread = new Thread(() -> runConversationLoop(key), "conversation-worker-" + key);
+            thread.setDaemon(true);
+            thread.start();
+            return thread;
+        });
+    }
+
+    private void runConversationLoop(@NonNull String cid) {
+        BlockingQueue<Runnable> controlQueue = getControlQueue(cid);
+        BlockingQueue<AudioFrame> audioQueue = getAudioQueue(cid);
+        AtomicBoolean closing = closingFlags.computeIfAbsent(cid, (key) -> new AtomicBoolean(false));
+        Conversation conversation = conversationStore.getConversationMemoryOrStorage(cid);
+
         try {
-            worker.execute(task);
-        }
-        catch (RejectedExecutionException ex) {
-            log.warn("Conversation worker queue is full. cid={}", cid, ex);
-            if (outstreamService != null) {
-                outstreamService.onError(cid, "Conversation worker is busy. Please retry.");
+            while (true) {
+                drainControlTasks(cid, controlQueue);
+
+                if (closing.get() && controlQueue.isEmpty() && audioQueue.isEmpty()) {
+                    break;
+                }
+
+                AudioFrame frame = audioQueue.poll(WORKER_IDLE_POLL_MS, TimeUnit.MILLISECONDS);
+                if (frame != null) {
+                    try {
+                        handleUserVoice(conversation, cid, frame.raw(), frame.outstreamService());
+                    } catch (Exception ex) {
+                        log.warn("Failed to process audio frame. cid={}", cid, ex);
+                        frame.outstreamService().onError(cid, "Audio processing failed.");
+                    }
+                }
             }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            log.debug("Conversation worker interrupted. cid={}", cid);
+        } finally {
+            cleanupConversationWorker(cid, Thread.currentThread());
         }
     }
 
-    private @NonNull ThreadPoolExecutor newConversationWorker(@NonNull String cid) {
-        int queueCapacity = audioProperties.getMaxConversationTasks() > 0
-                ? audioProperties.getMaxConversationTasks()
-                : DEFAULT_MAX_CONVERSATION_TASKS;
+    private void drainControlTasks(@NonNull String cid, @NonNull BlockingQueue<Runnable> controlQueue) {
+        int processed = 0;
+        Runnable task;
 
-        return new ThreadPoolExecutor(
-                1,
-                1,
-                0L,
-                TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(queueCapacity),
-                (runnable) -> {
-                    Thread thread = new Thread(runnable, "conversation-worker-" + cid);
-                    thread.setDaemon(true);
-                    return thread;
-                },
-                new ThreadPoolExecutor.AbortPolicy()
-        );
+        while (processed < MAX_CONTROL_TASKS_PER_TICK && (task = controlQueue.poll()) != null) {
+            try {
+                task.run();
+            } catch (Exception ex) {
+                log.warn("Conversation control task failed. cid={}", cid, ex);
+            }
+            processed++;
+        }
+    }
+
+    private void cleanupConversationWorker(@NonNull String cid, @NonNull Thread workerThread) {
+        conversationWorkers.remove(cid, workerThread);
+        conversationAudioQueues.remove(cid);
+        conversationControlQueues.remove(cid);
+        closingFlags.remove(cid);
+    }
+
+    private void clearBufferedAudio(@NonNull String cid) {
+        BlockingQueue<AudioFrame> audioQueue = conversationAudioQueues.get(cid);
+        if (audioQueue != null) {
+            audioQueue.clear();
+        }
+    }
+
+    private @NonNull BlockingQueue<AudioFrame> getAudioQueue(@NonNull String cid) {
+        return conversationAudioQueues.computeIfAbsent(cid, (key) -> new ArrayBlockingQueue<>(resolveAudioQueueCapacity()));
+    }
+
+    private @NonNull BlockingQueue<Runnable> getControlQueue(@NonNull String cid) {
+        return conversationControlQueues.computeIfAbsent(cid, (key) -> new LinkedBlockingQueue<>());
+    }
+
+    private int resolveAudioQueueCapacity() {
+        return audioProperties.getMaxConversationTasks() > 0
+                ? audioProperties.getMaxConversationTasks()
+                : DEFAULT_MAX_AUDIO_QUEUE_FRAMES;
+    }
+
+    private record AudioFrame(byte[] raw, OutstreamService outstreamService) {
     }
 }
