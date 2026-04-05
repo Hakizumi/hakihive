@@ -18,14 +18,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Setter
 @ToString
 public class AudioProperties {
-    // ====== Audio format (recommended for streaming ASR) ======
-
     /**
      * Target sample rate in Hz for browser streaming ASR.
      */
     private int sampleRate = 16000;
-
-    // ====== ASR properties ======
 
     /**
      * Audio recognize service threads.
@@ -33,37 +29,37 @@ public class AudioProperties {
     private int asrThreads = 1;
 
     /**
-     * Fallback VAD RMS threshold when adaptive noise floor is not stable yet.
-     */
-    private float vadRmsThreshold = 0.012f;
-
-    /**
-     * Lower bound for adaptive VAD threshold.
-     */
-    private float minVadRmsThreshold = 0.008f;
-
-    /**
-     * Adaptive threshold = noiseFloor * vadNoiseMultiplier.
-     */
-    private float vadNoiseMultiplier = 2.4f;
-
-    /**
-     * Exponential moving average alpha for noise floor tracking.
-     */
-    private float vadNoiseFloorAlpha = 0.92f;
-
-    /**
-     * Silence frames required to finalize one utterance.
-     */
-    private long silenceTriggerFrame = 12;
-
-    /**
-     * Minimum speech frames required to accept one utterance.
+     * Minimum decoded frames required to accept one utterance.
      */
     private long speechTriggerFrame = 6;
 
     /**
-     * Consecutive speaking frames required before barge-in stops assistant.
+     * Consecutive transcript updates required before barge-in stops assistant.
      */
-    private long bargeInSpeechFrames = 3;
+    private long bargeInSpeechFrames = 2;
+
+    /**
+     * Max queued tasks per cid worker.
+     */
+    private int maxConversationTasks = 512;
+
+    /**
+     * Max pcm16le bytes allowed in one websocket binary frame.
+     */
+    private int maxAudioBytesPerFrame = 65536;
+
+    /**
+     * Sherpa endpoint rule1 trailing silence seconds.
+     */
+    private float sherpaRule1MinTrailingSilence = 2.4f;
+
+    /**
+     * Sherpa endpoint rule2 trailing silence seconds.
+     */
+    private float sherpaRule2MinTrailingSilence = 1.2f;
+
+    /**
+     * Sherpa endpoint rule3 minimum utterance length seconds.
+     */
+    private float sherpaRule3MinUtteranceLength = 20.0f;
 }
